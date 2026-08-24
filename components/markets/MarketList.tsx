@@ -1,72 +1,104 @@
-import { Search, TrendingUp, TrendingDown } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+"use client";
 
-const mockMarkets = [
-  { symbol: "BTC/USDT", price: "64,230.50", change: "+2.4%", volume: "1.2B", trend: "Bullish", score: 87, status: "WATCH" },
-  { symbol: "ETH/USDT", price: "3,450.20", change: "-1.2%", volume: "850M", trend: "Bearish", score: 45, status: "WAIT" },
-  { symbol: "SOL/USDT", price: "145.80", change: "+5.6%", volume: "620M", trend: "Bullish", score: 91, status: "STRONG" },
-  { symbol: "XRP/USDT", price: "0.5840", change: "+0.8%", volume: "310M", trend: "Neutral", score: 62, status: "MODERATE" },
-];
+import { useState, useMemo } from "react";
+import { Search, RefreshCw, AlertTriangle } from "lucide-react";
+import { useMarkets } from "@/hooks/useMarkets";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { MarketCard } from "./MarketCard";
+
+type TabType = 'ALL' | 'SPOT' | 'FUTURES';
 
 export function MarketList() {
+  const [activeTab, setActiveTab] = useState<TabType>('ALL');
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  const { markets, status, refetch } = useMarkets(activeTab);
+
+  const filteredMarkets = useMemo(() => {
+    if (!searchQuery) return markets;
+    return markets.filter(m => 
+      m.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [markets, searchQuery]);
+
+  const tabs: { label: TabType; count?: number }[] = [
+    { label: 'ALL' },
+    { label: 'SPOT' },
+    { label: 'FUTURES' },
+  ];
+
   return (
     <div className="p-4 space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search markets (BTC, ETH, SOL...)"
-          className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-primary-500"
-        />
+      {/* Header with Search and Status */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search markets (BTC, ETH...)"
+            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <StatusBadge status={status} />
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {["ALL", "SPOT", "FUTURES"].map((tab, i) => (
-          <button
-            key={tab}
+        {tabs.map((tab) => (
+          <button            key={tab.label}
+            onClick={() => setActiveTab(tab.label)}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-              i === 0
+              activeTab === tab.label
                 ? "bg-primary-500 text-white"
                 : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
             }`}
           >
-            {tab}
+            {tab.label}
           </button>
         ))}
+        
+        {/* Refresh Button */}
+        <button 
+          onClick={() => refetch()}
+          className="ml-auto p-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 active:scale-90 transition-transform"
+          aria-label="Refresh data"
+        >
+          <RefreshCw className={`w-4 h-4 ${status === 'LOADING' ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
+      {/* Content Area */}
       <div className="space-y-3">
-        {mockMarkets.map((market) => (
-          <div
-            key={market.symbol}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm active:scale-[0.98] transition-transform"
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h3 className="font-bold text-gray-900 dark:text-white">{market.symbol}</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Vol: {market.volume}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900 dark:text-white">${market.price}</p>
-                <p className={`text-xs font-medium flex items-center gap-1 justify-end ${
-                  market.change.startsWith("+") ? "text-green-500" : "text-red-500"
-                }`}>
-                  {market.change.startsWith("+") ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {market.change}
-                </p>
-              </div>
+        {status === 'OFFLINE' && markets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
-            <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 dark:text-gray-400">Trend: <span className="font-medium text-gray-700 dark:text-gray-200">{market.trend}</span></span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Score: <span className="font-bold text-primary-600 dark:text-primary-400">{market.score}/100</span></span>
-              </div>
-              <Badge variant={market.status === "STRONG" ? "success" : market.status === "WAIT" ? "neutral" : "warning"}>
-                {market.status}
-              </Badge>
-            </div>
+            <h3 className="font-bold text-gray-900 dark:text-white mb-1">Connection Lost</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Unable to fetch market data.</p>
+            <button 
+              onClick={() => refetch()}
+              className="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg active:scale-95 transition-transform"
+            >
+              Retry Connection
+            </button>
           </div>
-        ))}
+        ) : status === 'LOADING' && markets.length === 0 ? (
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 h-20 animate-pulse" />
+            ))}
+          </div>
+        ) : filteredMarkets.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-gray-400">No markets found matching "{searchQuery}"</p>
+          </div>
+        ) : (
+          filteredMarkets.map((market) => (            <MarketCard key={`${market.marketType}-${market.symbol}`} market={market} />
+          ))
+        )}
       </div>
     </div>
   );
