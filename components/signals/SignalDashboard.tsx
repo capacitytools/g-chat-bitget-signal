@@ -1,18 +1,21 @@
 import { SignalCard } from "./SignalCard";
-import { ChartPlaceholder } from "./ChartPlaceholder";
+import { TradingChart } from "@/components/chart/TradingChart";
 
 export function SignalDashboard() {
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Setups</h2>
+      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Market Analysis</h2>
       
-      <ChartPlaceholder />
+      {/* Real Interactive Chart */}
+      <TradingChart symbol="BTCUSDT" marketType="SPOT" />
+
+      <h3 className="text-md font-bold text-gray-900 dark:text-white pt-2">Active Setups</h3>
 
       <div className="space-y-4">
         <SignalCard 
           asset="BTC/USDT"
-          type="Futures"
-          direction="LONG"
+          type="Spot"
+          direction="BUY"
           score={89}
           entry="64,150"
           sl="63,800"
