@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 
 const INTERVAL_MAP: Record<string, string> = {
-  '1m': '1m',
-  '5m': '5m',
-  '15m': '15m',
-  '1h': '1H',
+  '1m': '1min',
+  '5m': '5min',
+  '15m': '15min',
+  '1h': '1h',
 };
 
 export async function GET(request: Request) {
@@ -13,34 +13,22 @@ export async function GET(request: Request) {
   const marketType = searchParams.get('marketType') || 'SPOT';
   const interval = searchParams.get('interval') || '15m';
 
-  const granularity = INTERVAL_MAP[interval] || '15m';
+  const granularity = INTERVAL_MAP[interval] || '15min';
 
   try {
     let url = '';
-    let apiUrl = '';
     
     if (marketType === 'FUTURES') {
-      apiUrl = `https://api.bitget.com/api/v2/mix/market/candles`;
-      url = `${apiUrl}?symbol=${symbol}&productType=USDT-FUTURES&granularity=${granularity}&limit=500`;
+      url = `https://api.bitget.com/api/v2/mix/market/candles?symbol=${symbol}&productType=USDT-FUTURES&granularity=${granularity}&limit=500`;
     } else {
-      apiUrl = `https://api.bitget.com/api/v2/spot/market/candles`;
-      url = `${apiUrl}?symbol=${symbol}&granularity=${granularity}&limit=500`;
+      url = `https://api.bitget.com/api/v2/spot/market/candles?symbol=${symbol}&granularity=${granularity}&limit=500`;
     }
 
-    console.log('Fetching from Bitget:', url);
-
     const res = await fetch(url, {
-      next: { revalidate: 0 } // Disable caching for debugging
+      next: { revalidate: 30 }
     });
     
     const json = await res.json();
-    
-    console.log('Bitget response:', {
-      code: json.code,
-      msg: json.msg,
-      dataLength: json.data?.length,
-      status: res.status
-    });
 
     if (json.code === '00000' && json.data && json.data.length > 0) {
       const formattedData = json.data.map((candle: string[]) => {
