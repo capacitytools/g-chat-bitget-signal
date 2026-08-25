@@ -36,7 +36,7 @@ export function SignalDashboard() {
                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 z-10 gap-2 text-center px-4">
                   <AlertCircle className="w-8 h-8 text-yellow-500" />
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Chart Data Unavailable</p>
-                  <p className="text-xs text-gray-500">{error || "The market is currently inactive or data is unavailable."}</p>
+                  <p className="text-xs text-gray-500">{error || "Market data unavailable."}</p>
                </div>
             )}
 
@@ -55,7 +55,7 @@ export function SignalDashboard() {
          <SignalCard analysis={analysis} asset="BTC/USDT" type="Spot" />
       ) : (
          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl text-center text-gray-500">
-            Waiting for market data...
+            Waiting for data...
          </div>
       )}
     </div>
