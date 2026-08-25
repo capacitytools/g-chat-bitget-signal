@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Search, RefreshCw, AlertTriangle } from "lucide-react";
 import { useMarkets } from "@/hooks/useMarkets";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -13,13 +13,17 @@ export function MarketList() {
   const [activeTab, setActiveTab] = useState<TabType>('TOP 10');
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Only fetch markets if we are not on the TOP 10 tab to save resources
-  const { markets, status, refetch } = useMarkets(activeTab === 'TOP 10' ? 'ALL' : activeTab);
+  // Only fetch markets if we are not on the TOP 10 tab
+  const marketsFilter = activeTab === 'TOP 10' ? 'ALL' : activeTab;
+  const { markets, status, refetch } = useMarkets(marketsFilter);
 
-  const filteredMarkets = useState(() => {
+  // Properly derive filtered markets using useMemo
+  const filteredMarkets = useMemo(() => {
     if (!searchQuery) return markets;
-    return markets.filter(m => m.symbol.toLowerCase().includes(searchQuery.toLowerCase()));
-  })[0]; // Simple state derivation
+    return markets.filter(m => 
+      m.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [markets, searchQuery]);
 
   const tabs: TabType[] = ['TOP 10', 'ALL', 'SPOT', 'FUTURES'];
 
@@ -43,11 +47,11 @@ export function MarketList() {
       {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {tabs.map((tab) => (
-          <button
-            key={tab}
+          <button            key={tab}
             onClick={() => { setActiveTab(tab); setSearchQuery(""); }}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-              activeTab === tab                ? "bg-primary-500 text-white"
+              activeTab === tab
+                ? "bg-primary-500 text-white"
                 : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
             }`}
           >
@@ -92,11 +96,13 @@ export function MarketList() {
           </div>
         ) : filteredMarkets.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">No markets found matching "{searchQuery}"</p>
+            <p className="text-gray-500 dark:text-gray-400">              {searchQuery ? `No markets found matching "${searchQuery}"` : "No market data available"}
+            </p>
           </div>
         ) : (
           filteredMarkets.map((market) => (
-            <MarketCard key={`${market.marketType}-${market.symbol}`} market={market} />          ))
+            <MarketCard key={`${market.marketType}-${market.symbol}`} market={market} />
+          ))
         )}
       </div>
     </div>
