@@ -19,6 +19,8 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
   const dirBg = isLong ? "bg-green-100 dark:bg-green-900/30" : isShort ? "bg-red-100 dark:bg-red-900/30" : "bg-gray-100 dark:bg-gray-700";
   const DirIcon = isLong ? TrendingUp : isShort ? TrendingDown : Minus;
 
+  const displayDirection = type === 'FUTURES' ? direction : (direction === 'LONG' ? 'BUY' : direction === 'SHORT' ? 'SELL' : 'WAIT');
+
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
       <div className="flex justify-between items-center mb-4">
@@ -28,7 +30,7 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
           </div>
           <div>
             <h3 className="font-bold text-gray-900 dark:text-white">{asset}</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{type} • {direction}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{type} • {displayDirection}</p>
           </div>
         </div>
         <div className="text-right">
@@ -67,7 +69,6 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
         </div>
       )}
 
-      {/* Integrated Risk Calculator */}
       <RiskCalculator 
         defaultEntry={entry} 
         defaultSL={sl} 
