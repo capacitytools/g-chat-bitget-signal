@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// Map our UI intervals to Bitget's expected granularity strings
 const INTERVAL_MAP: Record<string, string> = {
   '1m': '1m',
   '5m': '5m',
@@ -25,14 +24,13 @@ export async function GET(request: Request) {
     }
 
     const res = await fetch(url, {
-      next: { revalidate: 30 } // Cache for 30 seconds
+      next: { revalidate: 30 }
     });
     
     const json = await res.json();
 
     if (json.code === '00000' && json.data) {
-      // Bitget returns: [timestamp(ms), open, high, low, close, baseVol, quoteVol]
-      // lightweight-charts requires time in SECONDS (Unix timestamp)
+      // Map and strictly filter out any invalid candles
       const formattedData = json.data.map((candle: string[]) => {
         const time = Math.floor(parseInt(candle[0]) / 1000);
         const open = parseFloat(candle[1]);
@@ -41,15 +39,21 @@ export async function GET(request: Request) {
         const close = parseFloat(candle[4]);
         const volume = parseFloat(candle[5]);
 
-        return { time, open, high, low, close, volume };
-      });
+        // If any price is NaN, discard this candle
+        if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
+          return null;
+        }
 
-      // lightweight-charts requires data to be sorted in ascending chronological order
+        return { time, open, high, low, close, volume };
+      }).filter(Boolean); // Removes nulls
+
+      // Sort chronologically
       formattedData.sort((a: any, b: any) => a.time - b.time);
 
       return NextResponse.json({ success: true, data: formattedData });
     }
 
+    console.error('Bitget API Error:', json.msg || 'Unknown error');
     return NextResponse.json({ success: false, data: [], error: 'Invalid API response' }, { status: 500 });
 
   } catch (error) {
