@@ -22,6 +22,12 @@ export function useSignalAnalysis(symbol: string, marketType: 'SPOT' | 'FUTURES'
         const res = await fetch(`/api/klines?symbol=${symbol}&marketType=${marketType}&interval=${interval}`);
         const json = await res.json();
 
+        console.log('API Response:', json);
+
+        if (!res.ok) {
+          throw new Error(json.error || `HTTP ${res.status}: ${json.error}`);
+        }
+
         if (json.success && json.data && json.data.length > 50) {
           const rawCandles: RawCandle[] = json.data;
           
@@ -56,25 +62,28 @@ export function useSignalAnalysis(symbol: string, marketType: 'SPOT' | 'FUTURES'
           const signalResult = evaluateSignal(rawCandles, calcEma9, calcEma21, calcEma50, calcRsi);
           setAnalysis(signalResult);
         } else {
-          setError(json.error || 'Not enough data to calculate indicators.');
+          const errorMsg = json.error || 'Not enough data received';
+          console.error('Insufficient data:', errorMsg);
+          setError(errorMsg);
           setAnalysis({
             score: 0,
             direction: 'WAIT',
             trend: 'Unknown',
             momentum: 'Unknown',
-            reasons: ['Unable to fetch sufficient market data.'],
+            reasons: [errorMsg],
             invalidation: 'N/A'
           });
         }
       } catch (err) {
-        console.error("Analysis error:", err);
-        setError('Network error while fetching data.');
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        console.error("Analysis error:", errorMessage);
+        setError(errorMessage);
         setAnalysis({
           score: 0,
           direction: 'WAIT',
           trend: 'Unknown',
           momentum: 'Unknown',
-          reasons: ['Network connection failed.'],
+          reasons: [`Error: ${errorMessage}`],
           invalidation: 'N/A'
         });
       } finally {
