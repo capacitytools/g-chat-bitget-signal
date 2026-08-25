@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
 
-const INTERVAL_MAP: Record<string, string> = {
+// Spot uses: 1min, 5min, 15min, 1h
+// Futures uses: 1m, 5m, 15m, 1H
+const SPOT_INTERVAL_MAP: Record<string, string> = {
   '1m': '1min',
+  '3m': '3min',
   '5m': '5min',
   '15m': '15min',
+  '30m': '30min',
   '1h': '1h',
+};
+
+const FUTURES_INTERVAL_MAP: Record<string, string> = {
+  '1m': '1m',
+  '3m': '3m',
+  '5m': '5m',
+  '15m': '15m',
+  '30m': '30m',
+  '1h': '1H',
 };
 
 export async function GET(request: Request) {
@@ -13,7 +26,9 @@ export async function GET(request: Request) {
   const marketType = searchParams.get('marketType') || 'SPOT';
   const interval = searchParams.get('interval') || '15m';
 
-  const granularity = INTERVAL_MAP[interval] || '15min';
+  // Use different interval maps for Spot vs Futures
+  const intervalMap = marketType === 'FUTURES' ? FUTURES_INTERVAL_MAP : SPOT_INTERVAL_MAP;
+  const granularity = intervalMap[interval] || (marketType === 'FUTURES' ? '15m' : '15min');
 
   try {
     let url = '';
