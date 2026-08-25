@@ -18,7 +18,6 @@ export function TradingChart({ candles, ema9, ema21, ema50 }: TradingChartProps)
   const ema21SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const ema50SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
-  // 1. Initialize Chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -64,13 +63,12 @@ export function TradingChart({ candles, ema9, ema21, ema50 }: TradingChartProps)
     };
   }, []);
 
-  // 2. Update Data
   useEffect(() => {
     if (candles.length > 0 && candleSeriesRef.current) {
       candleSeriesRef.current.setData(candles);
-      ema9SeriesRef.current?.setData(ema9 || []);
-      ema21SeriesRef.current?.setData(ema21 || []);
-      ema50SeriesRef.current?.setData(ema50 || []);
+      if (ema9 && ema9SeriesRef.current) ema9SeriesRef.current.setData(ema9);
+      if (ema21 && ema21SeriesRef.current) ema21SeriesRef.current.setData(ema21);
+      if (ema50 && ema50SeriesRef.current) ema50SeriesRef.current.setData(ema50);
       chartRef.current?.timeScale().fitContent();
     }
   }, [candles, ema9, ema21, ema50]);
