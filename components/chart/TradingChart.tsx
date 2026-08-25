@@ -1,23 +1,30 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, LineData } from "lightweight-charts";
+import { useLivePrice } from "@/context/LivePriceContext";
 
 interface TradingChartProps {
   candles: CandlestickData[];
   ema9?: LineData[];
   ema21?: LineData[];
   ema50?: LineData[];
+  symbol?: string;
+  marketType?: 'SPOT' | 'FUTURES';
 }
 
-export function TradingChart({ candles, ema9, ema21, ema50 }: TradingChartProps) {
+export function TradingChart({ candles, ema9, ema21, ema50, symbol, marketType }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const ema9SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const ema21SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const ema50SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const [currentCandle, setCurrentCandle] = useState<CandlestickData | null>(null);
 
+  const { subscribe, unsubscribe, prices } = useLivePrice();
+
+  // Initialize Chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -40,8 +47,7 @@ export function TradingChart({ candles, ema9, ema21, ema50 }: TradingChartProps)
 
     candleSeriesRef.current = chart.addCandlestickSeries({
       upColor: '#10b981', downColor: '#ef4444',
-      borderDownColor: '#ef4444', borderUpColor: '#10b981',
-      wickDownColor: '#ef4444', wickUpColor: '#10b981',
+      borderDownColor: '#ef4444', borderUpColor: '#10b981',      wickDownColor: '#ef4444', wickUpColor: '#10b981',
     });
 
     ema9SeriesRef.current = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
@@ -63,6 +69,7 @@ export function TradingChart({ candles, ema9, ema21, ema50 }: TradingChartProps)
     };
   }, []);
 
+  // Update initial data
   useEffect(() => {
     if (candles.length > 0 && candleSeriesRef.current) {
       candleSeriesRef.current.setData(candles);
@@ -70,8 +77,41 @@ export function TradingChart({ candles, ema9, ema21, ema50 }: TradingChartProps)
       if (ema21 && ema21SeriesRef.current) ema21SeriesRef.current.setData(ema21);
       if (ema50 && ema50SeriesRef.current) ema50SeriesRef.current.setData(ema50);
       chartRef.current?.timeScale().fitContent();
+      
+      // Set current candle to the last one
+      setCurrentCandle(candles[candles.length - 1]);
     }
   }, [candles, ema9, ema21, ema50]);
+
+  // Subscribe to live prices
+  useEffect(() => {
+    if (symbol && marketType) {
+      subscribe(symbol, marketType);
+    }
+    return () => {
+      if (symbol) {
+        unsubscribe(symbol);
+      }
+    };
+  }, [symbol, marketType, subscribe, unsubscribe]);
+
+  // Update chart with live price
+  useEffect(() => {    if (symbol && prices[symbol] && candleSeriesRef.current && currentCandle) {
+      const livePrice = prices[symbol];
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Update the current candle in real-time
+      const updatedCandle = {
+        ...currentCandle,
+        close: livePrice,
+        high: Math.max(currentCandle.high, livePrice),
+        low: Math.min(currentCandle.low, livePrice)
+      };
+      
+      candleSeriesRef.current.update(updatedCandle);
+      setCurrentCandle(updatedCandle);
+    }
+  }, [prices, symbol, currentCandle]);
 
   return <div ref={chartContainerRef} className="w-full h-full" />;
 }
