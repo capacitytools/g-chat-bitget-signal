@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { ScannerResult } from '@/lib/scannerEngine';
 
 export function ScannerList() {
+  const router = useRouter();
   const [data, setData] = useState<ScannerResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +31,10 @@ export function ScannerList() {
     fetchScanner();
   }, []);
 
+  const handleClick = (symbol: string, marketType: string) => {
+    router.push(`/signal?asset=${symbol}&type=${marketType}`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -41,8 +47,7 @@ export function ScannerList() {
   if (error || data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-4">
-        <AlertTriangle className="w-8 h-8 text-yellow-500" />
-        <p className="text-sm font-semibold text-gray-900 dark:text-white">Scanner Unavailable</p>
+        <AlertTriangle className="w-8 h-8 text-yellow-500" />        <p className="text-sm font-semibold text-gray-900 dark:text-white">Scanner Unavailable</p>
         <p className="text-xs text-gray-500">{error || "No high-scoring setups found right now."}</p>
       </div>
     );
@@ -62,7 +67,11 @@ export function ScannerList() {
         const trendColor = item.trend === 'Bullish' ? 'text-green-500' : item.trend === 'Bearish' ? 'text-red-500' : 'text-gray-500';
 
         return (
-          <div key={`${item.marketType}-${item.symbol}`} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
+          <div 
+            key={`${item.marketType}-${item.symbol}`} 
+            onClick={() => handleClick(item.symbol, item.marketType)}
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
+          >
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-3">
                 <span className="text-lg font-bold text-gray-400 dark:text-gray-600 w-6">#{index + 1}</span>
@@ -87,8 +96,7 @@ export function ScannerList() {
                 className={`h-1.5 rounded-full ${item.score >= 70 ? 'bg-green-500' : item.score >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} 
                 style={{ width: `${item.score}%` }}
               ></div>
-            </div>
-          </div>
+            </div>          </div>
         );
       })}
     </div>
