@@ -17,26 +17,39 @@ export async function GET(request: Request) {
 
   try {
     let url = '';
+    let apiUrl = '';
+    
     if (marketType === 'FUTURES') {
-      url = `https://api.bitget.com/api/v2/mix/market/candles?symbol=${symbol}&productType=USDT-FUTURES&granularity=${granularity}&limit=500`;
+      apiUrl = `https://api.bitget.com/api/v2/mix/market/candles`;
+      url = `${apiUrl}?symbol=${symbol}&productType=USDT-FUTURES&granularity=${granularity}&limit=500`;
     } else {
-      url = `https://api.bitget.com/api/v2/spot/market/candles?symbol=${symbol}&granularity=${granularity}&limit=500`;
+      apiUrl = `https://api.bitget.com/api/v2/spot/market/candles`;
+      url = `${apiUrl}?symbol=${symbol}&granularity=${granularity}&limit=500`;
     }
 
+    console.log('Fetching from Bitget:', url);
+
     const res = await fetch(url, {
-      next: { revalidate: 30 }
+      next: { revalidate: 0 } // Disable caching for debugging
     });
     
     const json = await res.json();
+    
+    console.log('Bitget response:', {
+      code: json.code,
+      msg: json.msg,
+      dataLength: json.data?.length,
+      status: res.status
+    });
 
-    if (json.code === '00000' && json.data) {
+    if (json.code === '00000' && json.data && json.data.length > 0) {
       const formattedData = json.data.map((candle: string[]) => {
         const time = Math.floor(parseInt(candle[0]) / 1000);
         const open = parseFloat(candle[1]);
         const high = parseFloat(candle[2]);
         const low = parseFloat(candle[3]);
         const close = parseFloat(candle[4]);
-        const volume = parseFloat(candle[5]);
+        const volume = parseFloat(candle[5] || '0');
 
         if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
           return null;
@@ -50,11 +63,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: formattedData });
     }
 
-    console.error('Bitget API Error:', json.msg || 'Unknown error');
-    return NextResponse.json({ success: false, data: [], error: 'Invalid API response' }, { status: 500 });
+    const errorMsg = json.msg || json.code || 'Unknown API error';
+    console.error('Bitget API Error:', errorMsg);
+    return NextResponse.json(
+      { success: false, data: [], error: `Bitget API: ${errorMsg}` }, 
+      { status: 500 }
+    );
 
   } catch (error) {
     console.error('Klines API Proxy Error:', error);
-    return NextResponse.json({ success: false, data: [], error: 'Failed to fetch klines' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { success: false, data: [], error: `Fetch error: ${errorMessage}` }, 
+      { status: 500 }
+    );
   }
 }
