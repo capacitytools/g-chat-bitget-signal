@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { SignalFeed } from "@/components/signals/SignalFeed";
 
 export default function Home() {
-  redirect("/chat");
+  return <SignalFeed />;
 }
