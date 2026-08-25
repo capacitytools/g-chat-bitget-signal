@@ -4,6 +4,7 @@ import "./globals.css";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Header } from "@/components/layout/Header";
 import { TradingProvider } from "@/context/TradingContext";
+import { LivePriceProvider } from "@/context/LivePriceContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,11 +22,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col`} suppressHydrationWarning>
         <TradingProvider>
-          <Header />
-          <main className="flex-1 pb-20 overflow-y-auto no-scrollbar">
-            {children}
-          </main>
-          <BottomNav />
+          <LivePriceProvider>
+            <Header />
+            <main className="flex-1 pb-20 overflow-y-auto no-scrollbar">
+              {children}
+            </main>
+            <BottomNav />
+          </LivePriceProvider>
         </TradingProvider>
       </body>
     </html>
