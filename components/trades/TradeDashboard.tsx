@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useTrading } from "@/context/TradingContext";
+import { useState, useEffect } from "react";
+import { useTrading, PaperTrade } from "@/context/TradingContext";
+import { useLivePrice } from "@/context/LivePriceContext";
 import { Wallet, TrendingUp, TrendingDown, Clock, XCircle, BarChart3, List } from "lucide-react";
 import { PerformanceDashboard } from "@/components/analytics/PerformanceDashboard";
 
 export function TradeDashboard() {
   const { balance, trades, closeTrade } = useTrading();
+  const { prices } = useLivePrice();
   const [view, setView] = useState<'analytics' | 'positions'>('analytics');
 
   const openTrades = trades.filter(t => t.status === 'OPEN');
@@ -14,7 +16,23 @@ export function TradeDashboard() {
   
   const wins = closedTrades.filter(t => t.status === 'WIN').length;
   const losses = closedTrades.filter(t => t.status === 'LOSS').length;
+  
+  // Calculate live P/L for closed trades
   const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+
+  // Calculate live unrealized P/L for open trades
+  const getLivePnL = (trade: PaperTrade) => {
+    const currentPrice = prices[trade.asset];
+    if (!currentPrice) return 0;
+    
+    if (trade.direction === 'LONG') {
+      return ((currentPrice - trade.entry) / trade.entry) * trade.positionSize * trade.leverage;
+    } else {
+      return ((trade.entry - currentPrice) / trade.entry) * trade.positionSize * trade.leverage;
+    }
+  };
+
+  const totalUnrealizedPnL = openTrades.reduce((sum, t) => sum + getLivePnL(t), 0);
 
   return (
     <div className="p-4 space-y-4">
@@ -25,8 +43,12 @@ export function TradeDashboard() {
             <p className="text-xs opacity-80 font-medium">Paper Trading Balance</p>
             <h2 className="text-3xl font-bold mt-1">${balance.toFixed(2)}</h2>
             <p className={`text-xs mt-1 font-medium ${totalPnl >= 0 ? 'text-green-200' : 'text-red-200'}`}>
-              Total P/L: {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+              Realized P/L: {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
             </p>
+            {totalUnrealizedPnL !== 0 && (
+              <p className={`text-xs font-medium ${totalUnrealizedPnL >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+                Unrealized: {totalUnrealizedPnL >= 0 ? '+' : ''}${totalUnrealizedPnL.toFixed(2)}              </p>
+            )}
           </div>
           <Wallet className="w-8 h-8 opacity-50" />
         </div>
@@ -47,7 +69,8 @@ export function TradeDashboard() {
         <button 
           onClick={() => setView('analytics')}
           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-semibold transition-colors ${
-            view === 'analytics' ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400'          }`}
+            view === 'analytics' ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400'
+          }`}
         >
           <BarChart3 className="w-4 h-4" /> Analytics
         </button>
@@ -72,31 +95,39 @@ export function TradeDashboard() {
               <p className="text-sm text-gray-500 dark:text-gray-400">No open paper trades.</p>
             </div>
           ) : (
-            openTrades.map(trade => (
-              <div key={trade.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white">{trade.asset}</h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{trade.direction} • {trade.leverage}x</p>
+            openTrades.map(trade => {
+              const livePnL = getLivePnL(trade);              const currentPrice = prices[trade.asset] || trade.entry;
+              
+              return (
+                <div key={trade.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <div>
+                      <h4 className="font-bold text-gray-900 dark:text-white">{trade.asset}</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{trade.direction} • {trade.leverage}x</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-bold ${livePnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {livePnL >= 0 ? '+' : ''}${livePnL.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-gray-500">${currentPrice.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="bg-gray-50 dark:bg-gray-900/50 p-2 rounded"><p className="text-gray-500">Entry</p><p className="font-bold">${trade.entry}</p></div>
+                    <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded"><p className="text-red-500">SL</p><p className="font-bold text-red-700 dark:text-red-300">${trade.sl}</p></div>
+                    <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded"><p className="text-green-500">TP</p><p className="font-bold text-green-700 dark:text-green-300">${trade.tp}</p></div>
                   </div>
                   <button 
-                    onClick={() => {
-                      const exitPrice = prompt(`Enter exit price for ${trade.asset}:`, trade.entry.toString());
-                      if (exitPrice) closeTrade(trade.id, parseFloat(exitPrice));
-                    }}
-                    className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg active:scale-95 transition-transform"
+                    onClick={() => closeTrade(trade.id, currentPrice)}
+                    className="w-full mt-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-semibold active:scale-95 transition-transform"
                   >
-                    <XCircle className="w-4 h-4" />
+                    Close Position at ${currentPrice.toFixed(2)}
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="bg-gray-50 dark:bg-gray-900/50 p-2 rounded"><p className="text-gray-500">Entry</p><p className="font-bold">${trade.entry}</p></div>
-                  <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded"><p className="text-red-500">SL</p><p className="font-bold text-red-700 dark:text-red-300">${trade.sl}</p></div>
-                  <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded"><p className="text-green-500">TP</p><p className="font-bold text-green-700 dark:text-green-300">${trade.tp}</p></div>
-                </div>
-              </div>
-            ))
-          )}        </div>
+              );
+            })
+          )}
+        </div>
       )}
     </div>
   );
