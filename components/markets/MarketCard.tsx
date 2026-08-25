@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { MarketData } from "@/types/market";
 
@@ -6,10 +9,10 @@ interface MarketCardProps {
 }
 
 export function MarketCard({ market }: MarketCardProps) {
+  const router = useRouter();
   const changePercent = (parseFloat(market.change24h) * 100).toFixed(2);
   const isPositive = parseFloat(market.change24h) >= 0;
   
-  // Format volume (e.g., 1200000 -> 1.2M)
   const volNum = parseFloat(market.volume24h);
   const formattedVol = volNum >= 1_000_000_000 
     ? `${(volNum / 1_000_000_000).toFixed(1)}B` 
@@ -19,14 +22,20 @@ export function MarketCard({ market }: MarketCardProps) {
     ? `${(volNum / 1_000).toFixed(1)}K` 
     : volNum.toFixed(0);
 
-  // Format price to max 4 decimal places, removing trailing zeros
   const formattedPrice = parseFloat(market.price).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6
   });
 
+  const handleClick = () => {
+    router.push(`/signal?asset=${market.symbol}&type=${market.marketType}`);
+  };
+
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm active:scale-[0.98] transition-transform">
+    <div 
+      onClick={handleClick}
+      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
+    >
       <div className="flex justify-between items-start">
         <div>
           <div className="flex items-center gap-2">
