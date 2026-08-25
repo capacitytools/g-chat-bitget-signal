@@ -30,7 +30,6 @@ export async function GET(request: Request) {
     const json = await res.json();
 
     if (json.code === '00000' && json.data) {
-      // Map and strictly filter out any invalid candles
       const formattedData = json.data.map((candle: string[]) => {
         const time = Math.floor(parseInt(candle[0]) / 1000);
         const open = parseFloat(candle[1]);
@@ -39,15 +38,13 @@ export async function GET(request: Request) {
         const close = parseFloat(candle[4]);
         const volume = parseFloat(candle[5]);
 
-        // If any price is NaN, discard this candle
         if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
           return null;
         }
 
         return { time, open, high, low, close, volume };
-      }).filter(Boolean); // Removes nulls
+      }).filter(Boolean);
 
-      // Sort chronologically
       formattedData.sort((a: any, b: any) => a.time - b.time);
 
       return NextResponse.json({ success: true, data: formattedData });
