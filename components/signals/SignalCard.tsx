@@ -1,5 +1,6 @@
 import { SignalResult } from "@/lib/signalEngine";
 import { TrendingUp, TrendingDown, Minus, ShieldAlert } from "lucide-react";
+import { RiskCalculator } from "@/components/risk/RiskCalculator";
 
 interface SignalCardProps {
   analysis: SignalResult;
@@ -8,7 +9,7 @@ interface SignalCardProps {
 }
 
 export function SignalCard({ analysis, asset, type }: SignalCardProps) {
-  const { score, direction, trend, momentum, reasons, invalidation } = analysis;
+  const { score, direction, trend, momentum, reasons, invalidation, entry, sl, tp1 } = analysis;
   
   const isLong = direction === 'LONG';
   const isShort = direction === 'SHORT';
@@ -60,11 +61,21 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
       </div>
 
       {!isWait && (
-        <div className="pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
           <ShieldAlert className="w-4 h-4 text-yellow-500 flex-shrink-0" />
           <span><strong>Invalidation:</strong> Price closes beyond {invalidation}</span>
         </div>
       )}
+
+      {/* Integrated Risk Calculator */}
+      <RiskCalculator 
+        defaultEntry={entry} 
+        defaultSL={sl} 
+        defaultTP={tp1} 
+        direction={direction} 
+        asset={asset} 
+        marketType={type === 'Spot' ? 'SPOT' : 'FUTURES'} 
+      />
     </div>
   );
 }
