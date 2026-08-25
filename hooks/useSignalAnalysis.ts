@@ -1,63 +1,89 @@
-import { NextResponse } from 'next/server';
+"use client";
 
-const INTERVAL_MAP: Record<string, string> = {
-  '1m': '1m',
-  '5m': '5m',
-  '15m': '15m',
-  '1h': '1H',
-};
+import { useState, useEffect } from 'react';
+import { RawCandle, calculateEMA, calculateRSI } from '@/lib/indicators';
+import { evaluateSignal, SignalResult } from '@/lib/signalEngine';
+import { CandlestickData, LineData, Time } from 'lightweight-charts';
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get('symbol') || 'BTCUSDT';
-  const marketType = searchParams.get('marketType') || 'SPOT';
-  const interval = searchParams.get('interval') || '15m';
+export function useSignalAnalysis(symbol: string, marketType: 'SPOT' | 'FUTURES', interval: string) {
+  const [candles, setCandles] = useState<CandlestickData[]>([]);
+  const [ema9, setEma9] = useState<LineData[]>([]);
+  const [ema21, setEma21] = useState<LineData[]>([]);
+  const [ema50, setEma50] = useState<LineData[]>([]);
+  const [analysis, setAnalysis] = useState<SignalResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const granularity = INTERVAL_MAP[interval] || '15m';
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/klines?symbol=${symbol}&marketType=${marketType}&interval=${interval}`);
+        const json = await res.json();
 
-  try {
-    let url = '';
-    if (marketType === 'FUTURES') {
-      url = `https://api.bitget.com/api/v2/mix/market/candles?symbol=${symbol}&productType=USDT-FUTURES&granularity=${granularity}&limit=500`;
-    } else {
-      url = `https://api.bitget.com/api/v2/spot/market/candles?symbol=${symbol}&granularity=${granularity}&limit=500`;
-    }
+        if (json.success && json.data && json.data.length > 50) {
+          const rawCandles: RawCandle[] = json.data;
+          
+          const chartCandles: CandlestickData[] = rawCandles.map(d => ({
+            time: d.time as Time, 
+            open: d.open, 
+            high: d.high, 
+            low: d.low, 
+            close: d.close
+          }));
+          setCandles(chartCandles);
 
-    const res = await fetch(url, {
-      next: { revalidate: 30 }
-    });
-    
-    const json = await res.json();
+          const closes = rawCandles.map(c => c.close);
+          const calcEma9 = calculateEMA(closes, 9);
+          const calcEma21 = calculateEMA(closes, 21);
+          const calcEma50 = calculateEMA(closes, 50);
+          const calcRsi = calculateRSI(closes, 14);
 
-    if (json.code === '00000' && json.data) {
-      // Map and strictly filter out any invalid candles
-      const formattedData = json.data.map((candle: string[]) => {
-        const time = Math.floor(parseInt(candle[0]) / 1000);
-        const open = parseFloat(candle[1]);
-        const high = parseFloat(candle[2]);
-        const low = parseFloat(candle[3]);
-        const close = parseFloat(candle[4]);
-        const volume = parseFloat(candle[5]);
+          const formatLine = (data: (number | null)[]): LineData[] => 
+            data.map((val, i) => {
+              if (val !== null && !isNaN(val)) {
+                return { time: rawCandles[i].time as Time, value: val };
+              }
+              return null;
+            })
+            .filter((v): v is LineData => v !== null);
 
-        // If any price is NaN, discard this candle
-        if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
-          return null;
+          setEma9(formatLine(calcEma9));
+          setEma21(formatLine(calcEma21));
+          setEma50(formatLine(calcEma50));
+
+          const signalResult = evaluateSignal(rawCandles, calcEma9, calcEma21, calcEma50, calcRsi);
+          setAnalysis(signalResult);
+        } else {
+          setError(json.error || 'Not enough data to calculate indicators.');
+          setAnalysis({
+            score: 0,
+            direction: 'WAIT',
+            trend: 'Unknown',
+            momentum: 'Unknown',
+            reasons: ['Unable to fetch sufficient market data.'],
+            invalidation: 'N/A'
+          });
         }
+      } catch (err) {
+        console.error("Analysis error:", err);
+        setError('Network error while fetching data.');
+        setAnalysis({
+          score: 0,
+          direction: 'WAIT',
+          trend: 'Unknown',
+          momentum: 'Unknown',
+          reasons: ['Network connection failed.'],
+          invalidation: 'N/A'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-        return { time, open, high, low, close, volume };
-      }).filter(Boolean); // Removes nulls
+    fetchData();
+  }, [symbol, marketType, interval]);
 
-      // Sort chronologically
-      formattedData.sort((a: any, b: any) => a.time - b.time);
-
-      return NextResponse.json({ success: true, data: formattedData });
-    }
-
-    console.error('Bitget API Error:', json.msg || 'Unknown error');
-    return NextResponse.json({ success: false, data: [], error: 'Invalid API response' }, { status: 500 });
-
-  } catch (error) {
-    console.error('Klines API Proxy Error:', error);
-    return NextResponse.json({ success: false, data: [], error: 'Failed to fetch klines' }, { status: 500 });
-  }
+  return { candles, ema9, ema21, ema50, analysis, isLoading, error };
 }
