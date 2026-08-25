@@ -16,11 +16,12 @@ export function useMarkets(filter: 'ALL' | 'SPOT' | 'FUTURES' = 'ALL') {
       const res = await fetch(`/api/markets?type=${filter}`);
       const json: MarketsResponse = await res.json();
 
-      if (json.success) {
+      if (json.success && json.data) {
         setMarkets(json.data);
         setLastUpdated(json.timestamp);
         setStatus('LIVE');
       } else {
+        console.error('Markets API error:', json.error);
         setStatus('OFFLINE');
       }
     } catch (error) {
