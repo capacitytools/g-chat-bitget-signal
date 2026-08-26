@@ -47,7 +47,8 @@ export function evaluateSignal(
     longScore += 20; 
     trend = "Bullish"; 
   } else { 
-    shortScore += 20;     trend = "Bearish"; 
+    shortScore += 20;
+    trend = "Bearish"; 
   }
 
   if (lastEma9 > lastEma21) { 
@@ -96,7 +97,8 @@ export function evaluateSignal(
   if (longScore > shortScore && longScore >= 60) {
     direction = 'LONG';
     finalScore = longScore;
-  } else if (shortScore > longScore && shortScore >= 60) {    direction = 'SHORT';
+  } else if (shortScore > longScore && shortScore >= 60) {
+    direction = 'SHORT';
     finalScore = shortScore;
   } else {
     direction = 'WAIT';
