@@ -5,10 +5,10 @@ import { RiskCalculator } from "@/components/risk/RiskCalculator";
 interface SignalCardProps {
   analysis: SignalResult;
   asset: string;
-  type: string;
+  marketType: string;
 }
 
-export function SignalCard({ analysis, asset, type }: SignalCardProps) {
+export function SignalCard({ analysis, asset, marketType }: SignalCardProps) {
   const { score, direction, trend, momentum, reasons, invalidation, entry, sl, tp1 } = analysis;
   
   const isLong = direction === 'LONG';
@@ -19,7 +19,7 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
   const dirBg = isLong ? "bg-green-100 dark:bg-green-900/30" : isShort ? "bg-red-100 dark:bg-red-900/30" : "bg-gray-100 dark:bg-gray-700";
   const DirIcon = isLong ? TrendingUp : isShort ? TrendingDown : Minus;
 
-  const displayDirection = type === 'FUTURES' ? direction : (direction === 'LONG' ? 'BUY' : direction === 'SHORT' ? 'SELL' : 'WAIT');
+  const displayDirection = marketType === 'FUTURES' ? direction : (direction === 'LONG' ? 'BUY' : direction === 'SHORT' ? 'SELL' : 'WAIT');
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
@@ -30,7 +30,7 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
           </div>
           <div>
             <h3 className="font-bold text-gray-900 dark:text-white">{asset}</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{type} • {displayDirection}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{marketType} • {displayDirection}</p>
           </div>
         </div>
         <div className="text-right">
@@ -75,7 +75,7 @@ export function SignalCard({ analysis, asset, type }: SignalCardProps) {
         defaultTP={tp1} 
         direction={direction} 
         asset={asset} 
-        marketType={type === 'Spot' ? 'SPOT' : 'FUTURES'} 
+        marketType={marketType === 'FUTURES' ? 'FUTURES' : 'SPOT'} 
       />
     </div>
   );
