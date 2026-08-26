@@ -39,15 +39,17 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
               const timeframeMs = timeframe === '1m' ? 60000 : timeframe === '3m' ? 180000 : 300000;
               const entryPrice = parseFloat(asset.price);
               
-              // Create signal with proper type casting
+              // FIX: Use type assertion with 'as const'
+              const signalMarketType = marketType as const;
+              
               const signal: FeedSignal = {
                 id: `${asset.symbol}-${signalGenerationTime}-${Math.random().toString(36).substr(2, 5)}`,
                 asset: asset.symbol,
-                marketType: marketType === 'FUTURES' ? 'FUTURES' : 'SPOT', // Explicit assignment
+                marketType: signalMarketType,
                 direction,
-                entry: entryPrice,
-                tp: direction === 'LONG' 
-                  ? entryPrice * 1.015                   : entryPrice * 0.985,
+                entry: entryPrice,                tp: direction === 'LONG' 
+                  ? entryPrice * 1.015 
+                  : entryPrice * 0.985,
                 sl: direction === 'LONG' 
                   ? entryPrice * 0.995 
                   : entryPrice * 1.015,
@@ -94,9 +96,9 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
       setSignals(prevSignals => 
         prevSignals.map(signal => {
           const currentPrice = prices[signal.asset];
-          if (!currentPrice || signal.status === 'WIN' || signal.status === 'LOSS') {
-            return signal;
+          if (!currentPrice || signal.status === 'WIN' || signal.status === 'LOSS') {            return signal;
           }
+
           const now = Date.now();
           if (now > signal.expireTime) {
             const pnl = signal.direction === 'LONG' 
