@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { name: "Chat", href: "/chat", icon: MessageCircle },
   { name: "Markets", href: "/markets", icon: BarChart3 },
-  { name: "Signal", href: "/signal", icon: Zap, isCenter: true },
+  { name: "Signal", href: "/", icon: Zap, isCenter: true },
   { name: "Trades", href: "/trades", icon: History },
   { name: "More", href: "/more", icon: MoreHorizontal },
 ];
@@ -20,7 +20,7 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
       <div className="flex justify-around items-center max-w-lg mx-auto">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href === "/chat" && pathname === "/");
+          const isActive = pathname === item.href || (item.href === "/" && pathname === "/");
           const Icon = item.icon;
 
           if (item.isCenter) {
