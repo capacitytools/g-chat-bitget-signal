@@ -7,26 +7,17 @@ import { useState, useEffect } from 'react';
 
 function SignalCard({ signal }: { signal: FeedSignal }) {
   const isLong = signal.direction === 'LONG';
-  const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor((signal.expireTime - Date.now()) / 1000)));
-  const [currentPrice, setCurrentPrice] = useState(signal.currentPrice || signal.entry);
-  const [livePnl, setLivePnl] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
 
+  // Countdown timer - counts down from expire time
   useEffect(() => {
     const timer = setInterval(() => {
       const remaining = Math.max(0, Math.floor((signal.expireTime - Date.now()) / 1000));
       setTimeLeft(remaining);
-      
-      if (signal.currentPrice) {
-        setCurrentPrice(signal.currentPrice);
-        const pnl = isLong 
-          ? ((signal.currentPrice - signal.entry) / signal.entry) * 100
-          : ((signal.entry - signal.currentPrice) / signal.entry) * 100;
-        setLivePnl(pnl);
-      }
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [signal.expireTime, signal.currentPrice, signal.entry, isLong]);
+  }, [signal.expireTime]);
 
   const isExpired = signal.status === 'WIN' || signal.status === 'LOSS';
   const isWin = signal.status === 'WIN';
@@ -37,19 +28,26 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Calculate live P/L percentage
+  const livePnl = signal.currentPrice 
+    ? (isLong 
+        ? ((signal.currentPrice - signal.entry) / signal.entry) * 100
+        : ((signal.entry - signal.currentPrice) / signal.entry) * 100)
+    : 0;
+
   return (
     <div className={`border-2 rounded-xl p-4 w-full max-w-2xl mx-auto transition-all mb-3 ${
       isExpired
         ? (isWin ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-red-500 bg-red-50 dark:bg-red-900/10')
         : (isLong ? 'border-green-500/50 bg-white dark:bg-gray-800' : 'border-red-500/50 bg-white dark:bg-gray-800')
     }`}>
-      {/* Header */}
+      {/* Header - STATIC */}
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-            isLong ? 'bg-green-500' : 'bg-red-500'          }`}>
-            {isLong ? <TrendingUp className="w-7 h-7 text-white" /> : <TrendingDown className="w-7 h-7 text-white" />}
-          </div>
+            isLong ? 'bg-green-500' : 'bg-red-500'
+          }`}>
+            {isLong ? <TrendingUp className="w-7 h-7 text-white" /> : <TrendingDown className="w-7 h-7 text-white" />}          </div>
           <div>
             <p className="text-base font-bold text-gray-900 dark:text-white">{signal.asset}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{signal.timeframe} • {signal.direction}</p>
@@ -61,7 +59,7 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       </div>
 
-      {/* BIG Countdown Timer */}
+      {/* Countdown Timer - DYNAMIC */}
       {!isExpired && (
         <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-4 mb-3 text-center">
           <div className="flex items-center justify-center gap-2 mb-1">
@@ -74,13 +72,13 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       )}
 
-      {/* Current Price & Live P/L */}
+      {/* Current Price & Live P/L - DYNAMIC */}
       {!isExpired && (
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current Price</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
-              ${currentPrice.toFixed(2)}
+              ${signal.currentPrice?.toFixed(2) || signal.entry.toFixed(2)}
             </p>
           </div>
           <div className={`rounded-xl p-3 text-center ${
@@ -96,9 +94,9 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       )}
 
-      {/* Expired Result */}      {isExpired && (
-        <div className={`rounded-xl p-6 mb-3 text-center ${
-          isWin ? 'bg-green-500' : 'bg-red-500'
+      {/* Expired Result - STATIC */}
+      {isExpired && (
+        <div className={`rounded-xl p-6 mb-3 text-center ${          isWin ? 'bg-green-500' : 'bg-red-500'
         }`}>
           <div className="flex items-center justify-center gap-2 mb-2">
             {isWin ? <CheckCircle className="w-8 h-8 text-white" /> : <XCircle className="w-8 h-8 text-white" />}
@@ -112,7 +110,7 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       )}
 
-      {/* Entry, TP, SL */}
+      {/* Entry, TP, SL - ALL STATIC */}
       <div className="grid grid-cols-3 gap-2 text-xs mb-3">
         <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 text-center">
           <p className="text-gray-500 dark:text-gray-400 mb-1">Entry</p>
@@ -128,7 +126,7 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       </div>
 
-      {/* Signal Time */}
+      {/* Signal Times - STATIC */}
       <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-1">
           <Clock className="w-4 h-4" />
@@ -142,12 +140,12 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
   );
 }
 
-// Tab selector component
+// Tab selector
 function MarketTypeSelector({ 
   selected, 
-  onChange }: { 
-  selected: 'FUTURES' | 'SPOT'; 
-  onChange: (type: 'FUTURES' | 'SPOT') => void 
+  onChange 
+}: { 
+  selected: 'FUTURES' | 'SPOT';   onChange: (type: 'FUTURES' | 'SPOT') => void 
 }) {
   return (
     <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl mb-4">
@@ -195,8 +193,8 @@ export function SignalFeed() {
 
   const activeSignals = signals.filter(s => s.status === 'FRESH' || s.status === 'ACTIVE');
   const closedSignals = signals.filter(s => s.status === 'WIN' || s.status === 'LOSS');
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
+
+  return (    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between mb-3">
@@ -223,10 +221,10 @@ export function SignalFeed() {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Active Signals - Vertical List */}
+        {/* Active Signals - Vertical Scroll */}
         {activeSignals.length > 0 && (
           <div>
-            <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2 sticky top-32 bg-gray-50 dark:bg-gray-900 py-2 z-10">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               Active Signals ({activeSignals.length})
             </h2>
@@ -236,16 +234,16 @@ export function SignalFeed() {
           </div>
         )}
 
-        {/* Closed Signals - Vertical List */}
+        {/* Closed Signals - Vertical Scroll */}
         {closedSignals.length > 0 && (
           <div>
-            <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3 sticky top-32 bg-gray-50 dark:bg-gray-900 py-2 z-10">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3">
               Recent Results ({closedSignals.length})
             </h2>
             {closedSignals.map(signal => (
-              <SignalCard key={signal.id} signal={signal} />            ))}
-          </div>
-        )}
+              <SignalCard key={signal.id} signal={signal} />
+            ))}
+          </div>        )}
 
         {signals.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center p-4 mt-20">
