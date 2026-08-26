@@ -8,99 +8,93 @@ export function useSignalFeed() {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe } = useLivePrice();
   const [isLoading, setIsLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
     const generateSignals = async () => {
       setIsLoading(true);
-      setDebugInfo('Fetching scanner...');
       
       try {
         const res = await fetch('/api/scanner');
         const json = await res.json();
-        
-        console.log('Scanner response:', json);
-        setDebugInfo(`Scanner: ${json.data?.length || 0} assets found`);
 
         if (json.success && json.data && json.data.length > 0) {
           const newSignals: FeedSignal[] = [];
 
-          // Try to find ANY futures assets, not just high score
           for (const asset of json.data) {
-            console.log('Checking asset:', asset);
-            
-            if (asset.marketType === 'FUTURES') {
+            if ((asset.marketType === 'FUTURES' || asset.score >= 70) && newSignals.length < 3) {
               const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
-              const timeframe: '1m' | '3m' | '5m' = '5m'; // Default to 5m
+              const timeframe: '1m' | '3m' | '5m' = '5m';
               
               const signal = generateSignal(
                 asset.symbol,
                 parseFloat(asset.price),
                 direction,
                 timeframe,
-                Math.max(60, asset.score || 70) // Ensure minimum score
+                Math.max(65, asset.score || 70)
               );
 
               newSignals.push(signal);
-              subscribe(asset.symbol, 'FUTURES');
-              
-              if (newSignals.length >= 3) break; // Get first 3
-            }
-          }
-          // If no futures found, try SPOT
-          if (newSignals.length === 0) {
-            setDebugInfo('No FUTURES found, trying SPOT...');
-            for (const asset of json.data) {
-              if (asset.marketType === 'SPOT' && asset.score >= 50) {
-                const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
-                
-                const signal = generateSignal(
-                  asset.symbol,
-                  parseFloat(asset.price),
-                  direction,
-                  '5m',
-                  Math.max(60, asset.score || 70)
-                );
-
-                newSignals.push(signal);
-                subscribe(asset.symbol, 'SPOT');
-                
-                if (newSignals.length >= 3) break;
-              }
+              subscribe(asset.symbol, asset.marketType || 'FUTURES');
             }
           }
 
           if (newSignals.length > 0) {
-            setSignals(newSignals);
-            setDebugInfo(`Generated ${newSignals.length} signals!`);
-          } else {
-            setDebugInfo('No suitable assets found');
+            setSignals(prev => [...newSignals, ...prev].slice(0, 10));
           }
-        } else {
-          setDebugInfo('Scanner failed: ' + (json.error || 'Unknown error'));
         }
       } catch (e) {
         console.error('Signal generation error:', e);
-        setDebugInfo('Error: ' + (e as Error).message);
       } finally {
         setIsLoading(false);
       }
     };
-
     generateSignals();
+    const interval = setInterval(generateSignals, 120000);
+    return () => clearInterval(interval);
   }, [subscribe]);
 
-  // Update signals with live prices
+  // Update based on price changes
   useEffect(() => {
-    if (Object.keys(prices).length === 0 || signals.length === 0) return;
+    if (Object.keys(prices).length === 0) return;
 
     setSignals(prevSignals => 
       prevSignals.map(signal => {
-        const currentPrice = prices[signal.asset];        if (!currentPrice) return signal;
+        const currentPrice = prices[signal.asset];
+        if (!currentPrice) return signal;
         return updateSignalStatus(signal, currentPrice);
       })
     );
-  }, [prices, signals]);
+  }, [prices]);
 
-  return { signals, isLoading, debugInfo };
+  // FORCE EXPIRATION CHECK EVERY SECOND
+  useEffect(() => {
+    const expirationTimer = setInterval(() => {
+      setSignals(prevSignals => 
+        prevSignals.map(signal => {
+          if (signal.status === 'FRESH' || signal.status === 'ACTIVE') {
+            const currentPrice = prices[signal.asset] || signal.entry;
+            const updated = updateSignalStatus(signal, currentPrice);
+            
+            // Force expire if time is up
+            if (Date.now() > signal.expireTime && updated.status !== 'WIN' && updated.status !== 'LOSS') {
+              const pnl = signal.direction === 'LONG' 
+                ? ((currentPrice - signal.entry) / signal.entry) * 100
+                : ((signal.entry - currentPrice) / signal.entry) * 100;
+              return {
+                ...updated,
+                status: pnl >= 0 ? 'WIN' : 'LOSS',
+                pnl
+              };
+            }
+            
+            return updated;
+          }
+          return signal;
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(expirationTimer);
+  }, [prices]);
+  return { signals, isLoading };
 }
