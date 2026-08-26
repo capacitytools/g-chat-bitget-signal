@@ -8,6 +8,7 @@ export function useSignalFeed() {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe, unsubscribe } = useLivePrice();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const generateSignals = async () => {
@@ -52,6 +53,7 @@ export function useSignalFeed() {
         console.error('Signal generation error:', e);
       } finally {
         setIsGenerating(false);
+        setIsLoading(false);
       }
     };
 
@@ -79,5 +81,5 @@ export function useSignalFeed() {
     };
   }, [signals, unsubscribe]);
 
-  return { signals };
+  return { signals, isLoading };
 }
