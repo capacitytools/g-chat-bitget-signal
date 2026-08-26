@@ -47,7 +47,8 @@ export function TradingChart({ candles, ema9, ema21, ema50, symbol, marketType }
 
     candleSeriesRef.current = chart.addCandlestickSeries({
       upColor: '#10b981', downColor: '#ef4444',
-      borderDownColor: '#ef4444', borderUpColor: '#10b981',      wickDownColor: '#ef4444', wickUpColor: '#10b981',
+      borderDownColor: '#ef4444', borderUpColor: '#10b981',
+      wickDownColor: '#ef4444', wickUpColor: '#10b981',
     });
 
     ema9SeriesRef.current = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
@@ -96,7 +97,8 @@ export function TradingChart({ candles, ema9, ema21, ema50, symbol, marketType }
   }, [symbol, marketType, subscribe, unsubscribe]);
 
   // Update chart with live price
-  useEffect(() => {    if (symbol && prices[symbol] && candleSeriesRef.current && currentCandle) {
+  useEffect(() => {
+    if (symbol && prices[symbol] && candleSeriesRef.current && currentCandle) {
       const livePrice = prices[symbol];
       const now = Math.floor(Date.now() / 1000);
       
