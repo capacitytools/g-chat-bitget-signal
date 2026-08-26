@@ -11,13 +11,11 @@ function FeedSignalCard({ signal }: { signal: FeedSignal }) {
   const [currentPrice, setCurrentPrice] = useState(signal.entry);
   const [livePnl, setLivePnl] = useState(0);
 
-  // Live countdown and P/L update every second
   useEffect(() => {
     const timer = setInterval(() => {
       const remaining = Math.max(0, Math.floor((signal.expireTime - Date.now()) / 1000));
       setTimeLeft(remaining);
       
-      // Calculate live P/L
       if (signal.currentPrice) {
         setCurrentPrice(signal.currentPrice);
         const pnl = isLong 
@@ -47,9 +45,9 @@ function FeedSignalCard({ signal }: { signal: FeedSignal }) {
     }`}>
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-            isLong ? 'bg-green-500' : 'bg-red-500'
-          }`}>
+        <div className="flex items-center gap-2">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+            isLong ? 'bg-green-500' : 'bg-red-500'          }`}>
             {isLong ? <TrendingUp className="w-6 h-6 text-white" /> : <TrendingDown className="w-6 h-6 text-white" />}
           </div>
           <div>
@@ -97,8 +95,8 @@ function FeedSignalCard({ signal }: { signal: FeedSignal }) {
           </div>
         </div>
       )}
-      {/* Expired Result */}
-      {isExpired && (
+
+      {/* Expired Result */}      {isExpired && (
         <div className={`rounded-xl p-4 mb-3 text-center ${
           isWin ? 'bg-green-500' : 'bg-red-500'
         }`}>
@@ -146,8 +144,8 @@ function FeedSignalCard({ signal }: { signal: FeedSignal }) {
 
 export function SignalFeed() {
   const { signals, isLoading } = useSignalFeed();
-  if (isLoading) {
-    return (
+
+  if (isLoading) {    return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
@@ -194,9 +192,9 @@ export function SignalFeed() {
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
             Active Signals ({activeSignals.length})
           </h2>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">            {activeSignals.map(signal => (
-              <FeedSignalCard key={signal.id} signal={signal} />
-            ))}
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+            {activeSignals.map(signal => (
+              <FeedSignalCard key={signal.id} signal={signal} />            ))}
           </div>
         </div>
       )}
