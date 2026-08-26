@@ -39,16 +39,15 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
               const timeframeMs = timeframe === '1m' ? 60000 : timeframe === '3m' ? 180000 : 300000;
               const entryPrice = parseFloat(asset.price);
               
-              // Create the signal object
               const signal: FeedSignal = {
                 id: `${asset.symbol}-${signalGenerationTime}-${Math.random().toString(36).substr(2, 5)}`,
                 asset: asset.symbol,
-                marketType: marketType === 'FUTURES' ? 'FUTURES' : 'SPOT',
+                marketType: marketType,
                 direction,
                 entry: entryPrice,
                 tp: direction === 'LONG' 
-                  ? entryPrice * 1.015                   : entryPrice * 0.985,
-                sl: direction === 'LONG' 
+                  ? entryPrice * 1.015 
+                  : entryPrice * 0.985,                sl: direction === 'LONG' 
                   ? entryPrice * 0.995 
                   : entryPrice * 1.015,
                 timeframe,
@@ -86,7 +85,6 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
     return () => clearInterval(interval);
   }, [subscribe, marketType]);
 
-  // Update ONLY current price and status every second
   useEffect(() => {
     if (Object.keys(prices).length === 0) return;
 
@@ -97,8 +95,8 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
           if (!currentPrice || signal.status === 'WIN' || signal.status === 'LOSS') {
             return signal;
           }
-          const now = Date.now();
-          if (now > signal.expireTime) {
+
+          const now = Date.now();          if (now > signal.expireTime) {
             const pnl = signal.direction === 'LONG' 
               ? ((currentPrice - signal.entry) / signal.entry) * 100
               : ((signal.entry - currentPrice) / signal.entry) * 100;
