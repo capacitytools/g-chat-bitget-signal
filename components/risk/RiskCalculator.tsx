@@ -47,7 +47,8 @@ export function RiskCalculator({ defaultEntry, defaultSL, defaultTP, direction, 
         className="w-full flex items-center justify-between text-sm font-semibold text-primary-600 dark:text-primary-400"
       >
         <span className="flex items-center gap-2"><Zap className="w-4 h-4" /> Risk & Position Sizing</span>
-        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}      </button>
+        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      </button>
 
       {isOpen && (
         <div className="mt-3 space-y-3">
@@ -96,7 +97,8 @@ export function RiskCalculator({ defaultEntry, defaultSL, defaultTP, direction, 
 
           {results && (
             <div className={`p-3 rounded-lg ${results.isValid ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-900/50' : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50'}`}>
-              {results.isValid ? (                <div className="grid grid-cols-2 gap-2 text-xs">
+              {results.isValid ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div><span className="text-gray-500">Risk:</span> <span className="font-bold">${results.riskAmount.toFixed(2)}</span></div>
                   <div><span className="text-gray-500">Pos Size:</span> <span className="font-bold">${results.positionSize.toFixed(2)}</span></div>
                   <div><span className="text-gray-500">Margin:</span> <span className="font-bold">${results.marginRequired.toFixed(2)}</span></div>
