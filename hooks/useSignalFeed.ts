@@ -20,8 +20,12 @@ export function useSignalFeed() {
         if (json.success && json.data && json.data.length > 0) {
           const newSignals: FeedSignal[] = [];
 
+          // Generate up to 8 signals instead of 3
           for (const asset of json.data) {
-            if ((asset.marketType === 'FUTURES' || asset.score >= 70) && newSignals.length < 3) {
+            if (newSignals.length >= 8) break;
+            
+            // Accept both FUTURES and high-score SPOT
+            if (asset.marketType === 'FUTURES' || asset.score >= 65) {
               const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
               const timeframe: '1m' | '3m' | '5m' = '5m';
               
@@ -39,15 +43,15 @@ export function useSignalFeed() {
           }
 
           if (newSignals.length > 0) {
-            setSignals(prev => [...newSignals, ...prev].slice(0, 10));
+            setSignals(prev => [...newSignals, ...prev].slice(0, 15));
           }
         }
       } catch (e) {
-        console.error('Signal generation error:', e);
-      } finally {
+        console.error('Signal generation error:', e);      } finally {
         setIsLoading(false);
       }
     };
+
     generateSignals();
     const interval = setInterval(generateSignals, 120000);
     return () => clearInterval(interval);
@@ -61,7 +65,9 @@ export function useSignalFeed() {
       prevSignals.map(signal => {
         const currentPrice = prices[signal.asset];
         if (!currentPrice) return signal;
-        return updateSignalStatus(signal, currentPrice);
+        
+        const updated = updateSignalStatus(signal, currentPrice);
+        return { ...updated, currentPrice };
       })
     );
   }, [prices]);
@@ -83,18 +89,19 @@ export function useSignalFeed() {
               return {
                 ...updated,
                 status: pnl >= 0 ? 'WIN' : 'LOSS',
-                pnl
+                pnl,
+                currentPrice
               };
             }
             
-            return updated;
+            return { ...updated, currentPrice };
           }
-          return signal;
-        })
+          return signal;        })
       );
     }, 1000);
 
     return () => clearInterval(expirationTimer);
   }, [prices]);
+
   return { signals, isLoading };
 }
