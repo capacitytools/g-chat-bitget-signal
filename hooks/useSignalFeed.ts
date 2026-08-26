@@ -7,19 +7,21 @@ import { useLivePrice } from '@/context/LivePriceContext';
 export function useSignalFeed() {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe, unsubscribe } = useLivePrice();
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const generateSignals = async () => {
-      if (isGenerating) return;
-      setIsGenerating(true);
-
+      setIsLoading(true);
+      setError(null);
+      
       try {
+        console.log('Fetching scanner data...');
         const res = await fetch('/api/scanner');
         const json = await res.json();
+        console.log('Scanner response:', json);
 
-        if (json.success && json.data.length > 0) {
+        if (json.success && json.data && json.data.length > 0) {
           const topAssets = json.data.slice(0, 3);
           const newSignals: FeedSignal[] = [];
 
@@ -39,6 +41,7 @@ export function useSignalFeed() {
 
               newSignals.push(signal);
               subscribe(asset.symbol, 'FUTURES');
+              console.log('Generated signal:', signal);
             }
           }
 
@@ -47,24 +50,32 @@ export function useSignalFeed() {
               const combined = [...newSignals, ...prev].slice(0, 10);
               return combined;
             });
+          } else {
+            setError('No high-quality signals found. Waiting for better setups...');
           }
+        } else {
+          setError('Scanner returned no data. Retrying...');
         }
       } catch (e) {
         console.error('Signal generation error:', e);
+        setError('Error fetching signals. Retrying...');
       } finally {
-        setIsGenerating(false);
         setIsLoading(false);
       }
     };
 
+    // Generate immediately
     generateSignals();
+    
+    // Then retry every 2 minutes
     const interval = setInterval(generateSignals, 120000);
 
     return () => clearInterval(interval);
-  }, [isGenerating, subscribe]);
+  }, [subscribe]);
 
+  // Update signals with live prices
   useEffect(() => {
-    if (Object.keys(prices).length === 0) return;
+    if (Object.keys(prices).length === 0 || signals.length === 0) return;
 
     setSignals(prevSignals => 
       prevSignals.map(signal => {
@@ -73,13 +84,14 @@ export function useSignalFeed() {
         return updateSignalStatus(signal, currentPrice);
       })
     );
-  }, [prices]);
+  }, [prices, signals]);
 
+  // Cleanup
   useEffect(() => {
     return () => {
       signals.forEach(s => unsubscribe(s.asset));
     };
   }, [signals, unsubscribe]);
 
-  return { signals, isLoading };
+  return { signals, isLoading, error };
 }
