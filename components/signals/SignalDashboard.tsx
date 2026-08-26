@@ -52,7 +52,7 @@ export function SignalDashboard() {
             <span className="text-sm">Calculating signal...</span>
          </div>
       ) : analysis ? (
-         <SignalCard analysis={analysis} asset="BTC/USDT" type="Spot" />
+         <SignalCard analysis={analysis} asset="BTC/USDT" marketType="SPOT" />
       ) : (
          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl text-center text-gray-500">
             Waiting for data...
