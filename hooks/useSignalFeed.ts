@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { FeedSignal, generateSignal } from '@/lib/signalFeedEngine';
+import { FeedSignal } from '@/lib/signalFeedEngine';
 import { useLivePrice } from '@/context/LivePriceContext';
 
 export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
@@ -26,7 +26,7 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
 
         if (json.success && json.data && json.data.length > 0) {
           const newSignals: FeedSignal[] = [];
-          const signalGenerationTime = Date.now(); // FIXED time for all signals
+          const signalGenerationTime = Date.now();
 
           for (const asset of json.data) {
             if (newSignals.length >= 10) break;
@@ -37,25 +37,26 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
                 asset.score >= 80 ? '1m' : asset.score >= 70 ? '3m' : '5m';
               
               const timeframeMs = timeframe === '1m' ? 60000 : timeframe === '3m' ? 180000 : 300000;
+              const entryPrice = parseFloat(asset.price);
               
-              // Generate signal with FIXED parameters
+              // Create signal with proper type casting
               const signal: FeedSignal = {
                 id: `${asset.symbol}-${signalGenerationTime}-${Math.random().toString(36).substr(2, 5)}`,
                 asset: asset.symbol,
-                marketType: marketType as 'FUTURES' | 'SPOT',
+                marketType: marketType === 'FUTURES' ? 'FUTURES' : 'SPOT', // Explicit assignment
                 direction,
-                entry: parseFloat(asset.price),
+                entry: entryPrice,
                 tp: direction === 'LONG' 
-                  ? parseFloat(asset.price) * 1.015 
-                  : parseFloat(asset.price) * 0.985,                sl: direction === 'LONG' 
-                  ? parseFloat(asset.price) * 0.995 
-                  : parseFloat(asset.price) * 1.015,
+                  ? entryPrice * 1.015                   : entryPrice * 0.985,
+                sl: direction === 'LONG' 
+                  ? entryPrice * 0.995 
+                  : entryPrice * 1.015,
                 timeframe,
-                signalTime: signalGenerationTime, // FIXED
-                expireTime: signalGenerationTime + timeframeMs, // FIXED
-                confidence: Math.max(65, asset.score || 70), // FIXED
+                signalTime: signalGenerationTime,
+                expireTime: signalGenerationTime + timeframeMs,
+                confidence: Math.max(65, asset.score || 70),
                 status: 'FRESH',
-                currentPrice: parseFloat(asset.price)
+                currentPrice: entryPrice
               };
 
               newSignals.push(signal);
@@ -81,7 +82,6 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
     };
 
     generateSignals();
-    // Generate new batch every 2 minutes
     const interval = setInterval(generateSignals, 120000);
     return () => clearInterval(interval);
   }, [subscribe, marketType]);
@@ -97,10 +97,8 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
           if (!currentPrice || signal.status === 'WIN' || signal.status === 'LOSS') {
             return signal;
           }
-          // Check if expired
           const now = Date.now();
           if (now > signal.expireTime) {
-            // Calculate final P/L
             const pnl = signal.direction === 'LONG' 
               ? ((currentPrice - signal.entry) / signal.entry) * 100
               : ((signal.entry - currentPrice) / signal.entry) * 100;
@@ -113,7 +111,6 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
             };
           }
 
-          // Still active - just update price
           const pnl = signal.direction === 'LONG' 
             ? ((currentPrice - signal.entry) / signal.entry) * 100
             : ((signal.entry - currentPrice) / signal.entry) * 100;
