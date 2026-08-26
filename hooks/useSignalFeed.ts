@@ -6,71 +6,88 @@ import { useLivePrice } from '@/context/LivePriceContext';
 
 export function useSignalFeed() {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
-  const { prices, subscribe, unsubscribe } = useLivePrice();
+  const { prices, subscribe } = useLivePrice();
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
     const generateSignals = async () => {
       setIsLoading(true);
-      setError(null);
+      setDebugInfo('Fetching scanner...');
       
       try {
-        console.log('Fetching scanner data...');
         const res = await fetch('/api/scanner');
         const json = await res.json();
+        
         console.log('Scanner response:', json);
+        setDebugInfo(`Scanner: ${json.data?.length || 0} assets found`);
 
         if (json.success && json.data && json.data.length > 0) {
-          const topAssets = json.data.slice(0, 3);
           const newSignals: FeedSignal[] = [];
 
-          for (const asset of topAssets) {
-            if (asset.marketType === 'FUTURES' && asset.score >= 60) {
+          // Try to find ANY futures assets, not just high score
+          for (const asset of json.data) {
+            console.log('Checking asset:', asset);
+            
+            if (asset.marketType === 'FUTURES') {
               const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
-              const timeframe: '1m' | '3m' | '5m' = 
-                asset.score >= 80 ? '1m' : asset.score >= 70 ? '3m' : '5m';
+              const timeframe: '1m' | '3m' | '5m' = '5m'; // Default to 5m
               
               const signal = generateSignal(
                 asset.symbol,
                 parseFloat(asset.price),
                 direction,
                 timeframe,
-                asset.score
+                Math.max(60, asset.score || 70) // Ensure minimum score
               );
 
               newSignals.push(signal);
               subscribe(asset.symbol, 'FUTURES');
-              console.log('Generated signal:', signal);
+              
+              if (newSignals.length >= 3) break; // Get first 3
+            }
+          }
+          // If no futures found, try SPOT
+          if (newSignals.length === 0) {
+            setDebugInfo('No FUTURES found, trying SPOT...');
+            for (const asset of json.data) {
+              if (asset.marketType === 'SPOT' && asset.score >= 50) {
+                const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
+                
+                const signal = generateSignal(
+                  asset.symbol,
+                  parseFloat(asset.price),
+                  direction,
+                  '5m',
+                  Math.max(60, asset.score || 70)
+                );
+
+                newSignals.push(signal);
+                subscribe(asset.symbol, 'SPOT');
+                
+                if (newSignals.length >= 3) break;
+              }
             }
           }
 
           if (newSignals.length > 0) {
-            setSignals(prev => {
-              const combined = [...newSignals, ...prev].slice(0, 10);
-              return combined;
-            });
+            setSignals(newSignals);
+            setDebugInfo(`Generated ${newSignals.length} signals!`);
           } else {
-            setError('No high-quality signals found. Waiting for better setups...');
+            setDebugInfo('No suitable assets found');
           }
         } else {
-          setError('Scanner returned no data. Retrying...');
+          setDebugInfo('Scanner failed: ' + (json.error || 'Unknown error'));
         }
       } catch (e) {
         console.error('Signal generation error:', e);
-        setError('Error fetching signals. Retrying...');
+        setDebugInfo('Error: ' + (e as Error).message);
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Generate immediately
     generateSignals();
-    
-    // Then retry every 2 minutes
-    const interval = setInterval(generateSignals, 120000);
-
-    return () => clearInterval(interval);
   }, [subscribe]);
 
   // Update signals with live prices
@@ -79,19 +96,11 @@ export function useSignalFeed() {
 
     setSignals(prevSignals => 
       prevSignals.map(signal => {
-        const currentPrice = prices[signal.asset];
-        if (!currentPrice) return signal;
+        const currentPrice = prices[signal.asset];        if (!currentPrice) return signal;
         return updateSignalStatus(signal, currentPrice);
       })
     );
   }, [prices, signals]);
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      signals.forEach(s => unsubscribe(s.asset));
-    };
-  }, [signals, unsubscribe]);
-
-  return { signals, isLoading, error };
+  return { signals, isLoading, debugInfo };
 }
