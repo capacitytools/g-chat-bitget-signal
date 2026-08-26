@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FeedSignal, generateSignal, updateSignalStatus } from '@/lib/signalFeedEngine';
 import { useLivePrice } from '@/context/LivePriceContext';
 
@@ -8,10 +8,19 @@ export function useSignalFeed() {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe } = useLivePrice();
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const isGenerating = useRef(false);
 
   useEffect(() => {
     const generateSignals = async () => {
-      setIsLoading(true);
+      // Prevent duplicate runs
+      if (isGenerating.current) return;
+      isGenerating.current = true;
+
+      // Only show loading on first run
+      if (!hasLoadedOnce) {
+        setIsLoading(true);
+      }
       
       try {
         const res = await fetch('/api/scanner');
@@ -20,11 +29,9 @@ export function useSignalFeed() {
         if (json.success && json.data && json.data.length > 0) {
           const newSignals: FeedSignal[] = [];
 
-          // Generate up to 8 signals instead of 3
           for (const asset of json.data) {
             if (newSignals.length >= 8) break;
             
-            // Accept both FUTURES and high-score SPOT
             if (asset.marketType === 'FUTURES' || asset.score >= 65) {
               const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
               const timeframe: '1m' | '3m' | '5m' = '5m';
@@ -41,21 +48,28 @@ export function useSignalFeed() {
               subscribe(asset.symbol, asset.marketType || 'FUTURES');
             }
           }
-
           if (newSignals.length > 0) {
-            setSignals(prev => [...newSignals, ...prev].slice(0, 15));
+            setSignals(prev => {
+              // Only add if we don't already have these signals
+              const existingIds = new Set(prev.map(s => s.id));
+              const uniqueNew = newSignals.filter(s => !existingIds.has(s.id));
+              return [...uniqueNew, ...prev].slice(0, 15);
+            });
           }
         }
       } catch (e) {
-        console.error('Signal generation error:', e);      } finally {
+        console.error('Signal generation error:', e);
+      } finally {
         setIsLoading(false);
+        setHasLoadedOnce(true);
+        isGenerating.current = false;
       }
     };
 
     generateSignals();
     const interval = setInterval(generateSignals, 120000);
     return () => clearInterval(interval);
-  }, [subscribe]);
+  }, [subscribe, hasLoadedOnce]);
 
   // Update based on price changes
   useEffect(() => {
@@ -82,8 +96,7 @@ export function useSignalFeed() {
             const updated = updateSignalStatus(signal, currentPrice);
             
             // Force expire if time is up
-            if (Date.now() > signal.expireTime && updated.status !== 'WIN' && updated.status !== 'LOSS') {
-              const pnl = signal.direction === 'LONG' 
+            if (Date.now() > signal.expireTime && updated.status !== 'WIN' && updated.status !== 'LOSS') {              const pnl = signal.direction === 'LONG' 
                 ? ((currentPrice - signal.entry) / signal.entry) * 100
                 : ((signal.entry - currentPrice) / signal.entry) * 100;
               return {
@@ -96,7 +109,8 @@ export function useSignalFeed() {
             
             return { ...updated, currentPrice };
           }
-          return signal;        })
+          return signal;
+        })
       );
     }, 1000);
 
