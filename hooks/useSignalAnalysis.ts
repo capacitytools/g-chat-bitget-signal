@@ -47,7 +47,8 @@ export function useSignalAnalysis(symbol: string, marketType: 'SPOT' | 'FUTURES'
           const calcRsi = calculateRSI(closes, 14);
 
           const formatLine = (data: (number | null)[]): LineData[] => 
-            data.map((val, i) => {              if (val !== null && !isNaN(val)) {
+            data.map((val, i) => {
+              if (val !== null && !isNaN(val)) {
                 return { time: rawCandles[i].time as Time, value: val };
               }
               return null;
@@ -96,7 +97,8 @@ export function useSignalAnalysis(symbol: string, marketType: 'SPOT' | 'FUTURES'
           tp3: 0
         });
       } finally {
-        setIsLoading(false);      }
+        setIsLoading(false);
+      }
     };
 
     fetchData();
