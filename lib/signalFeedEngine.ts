@@ -1,7 +1,7 @@
 export interface FeedSignal {
   id: string;
   asset: string;
-  marketType: 'FUTURES';
+  marketType: 'FUTURES' | 'SPOT';
   direction: 'LONG' | 'SHORT';
   entry: number;
   tp: number;
@@ -47,7 +47,6 @@ export function generateSignal(
     status: 'FRESH'
   };
 }
-
 export function updateSignalStatus(signal: FeedSignal, currentPrice: number): FeedSignal {
   const updated: FeedSignal = { ...signal, currentPrice };
 
@@ -97,8 +96,7 @@ export function updateSignalStatus(signal: FeedSignal, currentPrice: number): Fe
         updated.status = 'LOSS';
         updated.pnl = ((signal.entry - currentPrice) / signal.entry) * 100;
       }
-    } else {
-      updated.status = 'ACTIVE';
+    } else {      updated.status = 'ACTIVE';
       updated.pnl = ((currentPrice - signal.entry) / signal.entry) * 100;
     }
   } else {
