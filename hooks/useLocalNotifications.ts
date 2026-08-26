@@ -22,7 +22,7 @@ export function TradeDashboard() {
 
   // Calculate live unrealized P/L for open trades
   const getLivePnL = (trade: PaperTrade) => {
-    const currentPrice = prices?.[trade.asset];
+    const current = prices?.[trade.asset];
     if (!currentPrice) return 0;
 
     if (trade.direction === "LONG") {
@@ -34,9 +34,8 @@ export function TradeDashboard() {
 
   const totalUnrealizedPnL = openTrades.reduce((sum, t) => sum + getLivePnL(t), 0);
 
-  // Keep an effect if you want to poll or react to price changes (example placeholder)
   useEffect(() => {
-    // no-op for now; prices come from context
+    // Placeholder: keep effect to react to price updates if needed
   }, [prices]);
 
   return (
@@ -119,11 +118,7 @@ export function TradeDashboard() {
           ) : (
             openTrades.map((trade) => {
               const livePnL = getLivePnL(trade);
-              const currentPrice = prices?.[trade.asset] ?? trade.entry ?? 0;
-
-              return (
-                <div
-                  key={trade.id}
+              const currentPrice = prices?.[trade.asset] ?? trade.entry ??={trade.id}
                   className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm"
                 >
                   <div className="flex justify-between items-center mb-2">
@@ -134,7 +129,7 @@ export function TradeDashboard() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-sm font-bold ${livePnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                      <p className500" : "text-red-500"}`}>
                         {livePnL >= 0 ? "+" : ""}
                         ${livePnL.toFixed(2)}
                       </p>
@@ -142,7 +137,7 @@ export function TradeDashboard() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+                 3 text-xs">
                     <div className="bg-gray-50 dark:bg-gray-900/50 p-2 rounded">
                       <p className="text-gray-500">Entry</p>
                       <p className="font-bold">${(trade.entry ?? 0).toFixed(2)}</p>
@@ -152,8 +147,7 @@ export function TradeDashboard() {
                       <p className="font-bold text-red-700 dark:text-red-300">${(trade.sl ?? 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded">
-                      <p className="text-green-500">TP</p>
-                      <p className="font-bold text-green-700 dark:text-green-300">${(trade.tp ?? 0).toFixed(2)}</p>
+                      <p className="text-green.tp ?? 0).toFixed(2)}</p>
                     </div>
                   </div>
 
