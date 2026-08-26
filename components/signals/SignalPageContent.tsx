@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -18,7 +20,7 @@ export function SignalPageContent() {
   const asset = searchParams.get("asset") || "BTCUSDT";
   const marketType = searchParams.get("type") || "SPOT";
 
-  const [interval, setInterval] = useState("5m"); // Default to 5m for Futures scalping
+  const [interval, setInterval] = useState("5m");
 
   const { analysis, candles, ema9, ema21, ema50, isLoading, error } = useSignalAnalysis(
     asset,
@@ -35,7 +37,6 @@ export function SignalPageContent() {
   }, [analysis, mtfData, asset]);
 
   useEffect(() => {
-    // ensure default interval on asset/marketType change
     setInterval("5m");
   }, [asset, marketType]);
 
@@ -44,7 +45,6 @@ export function SignalPageContent() {
       <AssetSelector />
 
       <div className="p-4 space-y-4">
-        {/* Chart Section */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
           <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex flex-col gap-2">
             <ChartControls activeInterval={interval} onIntervalChange={setInterval} />
@@ -66,20 +66,17 @@ export function SignalPageContent() {
               </div>
             )}
 
-            <TradingChart candles={candles} ema9={ema9} ema21={ema21} ema50={ema50} />
+            <TradingChart candles={candles} ema9={ema9} ema21={ema21} ema50={ema50} symbol={asset} marketType={marketType as "SPOT" | "FUTURES"} />
           </div>
         </div>
 
-        {/* Multi-Timeframe Summary */}
         <div>
           <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2">Multi-Timeframe Alignment</h3>
           <MTFSummary data={mtfData} isLoading={isMTFLoading} />
         </div>
 
-        {/* G-Chat Briefing */}
         <ChatBriefing text={briefingText} />
 
-        {/* Signal Engine */}
         <h3 className="text-md font-bold text-gray-900 dark:text-white pt-2">Signal Engine</h3>
 
         {isLoading ? (
@@ -88,7 +85,7 @@ export function SignalPageContent() {
             <span className="text-sm">Calculating signal...</span>
           </div>
         ) : analysis ? (
-          <SignalCard analysis={analysis} asset={asset} type={marketType} />
+          <SignalCard analysis={analysis} asset={asset} marketType={marketType} />
         ) : (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl text-center text-gray-500">Waiting for data...</div>
         )}
