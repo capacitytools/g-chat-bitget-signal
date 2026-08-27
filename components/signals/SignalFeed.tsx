@@ -1,4 +1,205 @@
-// ... (all the previous code for SignalCard, SignalRecordCard, TabSelector)
+"use client";
+
+import { useSignalFeed } from '@/hooks/useSignalFeed';
+import { TrendingUp, TrendingDown, Clock, Zap, Timer, CheckCircle, XCircle, Search, FileText, Trophy, X } from 'lucide-react';
+import { FeedSignal } from '@/lib/signalFeedEngine';
+import { useState, useEffect } from 'react';
+
+type TabType = 'FUTURES' | 'SPOT' | 'RECORD';
+
+function SignalCard({ signal }: { signal: FeedSignal }) {
+  const isLong = signal.direction === 'LONG';
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [livePrice, setLivePrice] = useState(signal.entry);
+
+  useEffect(() => {
+    const countdown = setInterval(() => {
+      setTimeLeft(Math.max(0, Math.floor((signal.expireTime - Date.now()) / 1000)));
+    }, 1000);
+
+    const fetchPrice = async () => {
+      try {
+        const res = await fetch(`/api/klines?symbol=${signal.asset}&marketType=${signal.marketType}&interval=1m`);
+        const json = await res.json();
+        if (json.success && json.data && json.data.length > 0) {
+          const latestCandle = json.data[json.data.length - 1];
+          setLivePrice(latestCandle.close);
+        }
+      } catch (error) {
+        console.error("Price fetch error:", error);
+      }
+    };
+
+    fetchPrice();
+    const priceInterval = setInterval(fetchPrice, 5000);
+
+    return () => {
+      clearInterval(countdown);
+      clearInterval(priceInterval);
+    };
+  }, [signal.expireTime, signal.asset, signal.marketType]);
+
+  const livePnlPercent = isLong
+    ? ((livePrice - signal.entry) / signal.entry) * 100
+    : ((signal.entry - livePrice) / signal.entry) * 100;
+
+  const isExpired = signal.status === 'WIN' || signal.status === 'LOSS';
+  const displayPnl = isExpired ? (signal.pnl || 0) : livePnlPercent;
+  const isWin = isExpired ? (signal.pnl !== undefined && signal.pnl >= 0) : (livePnlPercent >= 0);
+
+  const formatTime = (seconds: number) => {    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className={`border-2 rounded-xl p-4 w-full max-w-2xl mx-auto transition-all mb-3 ${
+      isExpired
+        ? (isWin ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-red-500 bg-red-50 dark:bg-red-900/10')
+        : (isLong ? 'border-green-500/50 bg-white dark:bg-gray-800' : 'border-red-500/50 bg-white dark:bg-gray-800')
+    }`}>
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLong ? 'bg-green-500' : 'bg-red-500'}`}>
+            {isLong ? <TrendingUp className="w-7 h-7 text-white" /> : <TrendingDown className="w-7 h-7 text-white" />}
+          </div>
+          <div>
+            <p className="text-base font-bold text-gray-900 dark:text-white">{signal.asset}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{signal.timeframe} • {signal.direction}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">Confidence</p>
+          <p className="text-lg font-bold text-primary-600 dark:text-primary-400">{signal.confidence}%</p>
+        </div>
+      </div>
+
+      {!isExpired && (
+        <>
+          <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-4 mb-3 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Timer className="w-6 h-6 text-white animate-pulse" />
+              <span className="text-sm font-bold text-white uppercase">Time Remaining</span>
+            </div>
+            <p className="text-4xl font-black text-white tabular-nums">{formatTime(timeLeft)}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current Price</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">${livePrice.toFixed(2)}</p>
+            </div>
+            <div className={`rounded-xl p-3 text-center ${displayPnl >= 0 ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Live P/L</p>
+              <p className={`text-lg font-bold ${displayPnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {displayPnl >= 0 ? '+' : ''}{displayPnl.toFixed(2)}%
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+      {isExpired && (
+        <div className={`rounded-xl p-6 mb-3 text-center ${isWin ? 'bg-green-500' : 'bg-red-500'}`}>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            {isWin ? <CheckCircle className="w-8 h-8 text-white" /> : <XCircle className="w-8 h-8 text-white" />}
+            <span className="text-2xl font-black text-white">{isWin ? 'WIN' : 'LOSS'}</span>
+          </div>
+          <p className="text-3xl font-black text-white">{displayPnl >= 0 ? '+' : ''}{displayPnl.toFixed(2)}%</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+        <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 text-center">
+          <p className="text-gray-500 dark:text-gray-400 mb-1">Entry</p>
+          <p className="font-bold text-gray-900 dark:text-white">${signal.entry.toFixed(2)}</p>
+        </div>
+        <div className={`rounded-xl p-3 text-center ${isLong ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}>
+          <p className="text-gray-500 dark:text-gray-400 mb-1">TP</p>
+          <p className={`font-bold ${isLong ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>${signal.tp.toFixed(2)}</p>
+        </div>
+        <div className={`rounded-xl p-3 text-center ${isLong ? 'bg-red-100 dark:bg-red-900/20' : 'bg-green-100 dark:bg-green-900/20'}`}>
+          <p className="text-gray-500 dark:text-gray-400 mb-1">SL</p>
+          <p className={`font-bold ${isLong ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>${signal.sl.toFixed(2)}</p>
+        </div>
+      </div>
+
+      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-1">
+          <Clock className="w-4 h-4" />
+          <span>Started: {new Date(signal.signalTime).toLocaleTimeString()}</span>
+        </div>
+        <span className="font-medium">Expires: {new Date(signal.expireTime).toLocaleTimeString()}</span>
+      </div>
+    </div>
+  );
+}
+
+function SignalRecordCard({ signal }: { signal: FeedSignal }) {
+  const isWin = signal.status === 'WIN';
+  const isLong = signal.direction === 'LONG';
+  const date = new Date(signal.signalTime);
+  const formattedDate = date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  const startTime = date.toLocaleTimeString();
+  const endTime = new Date(signal.expireTime).toLocaleTimeString();
+  const finalPnl = signal.pnl || 0;
+
+  return (
+    <div className={`border-l-4 rounded-xl p-4 w-full max-w-2xl mx-auto mb-3 bg-white dark:bg-gray-800 shadow-sm ${isWin ? 'border-l-green-500' : 'border-l-red-500'}`}>
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-3">          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLong ? 'bg-green-500' : 'bg-red-500'}`}>
+            {isLong ? <TrendingUp className="w-7 h-7 text-white" /> : <TrendingDown className="w-7 h-7 text-white" />}
+          </div>
+          <div>
+            <p className="text-base font-bold text-gray-900 dark:text-white">{signal.asset}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{signal.timeframe} • {signal.direction} • {signal.marketType}</p>
+          </div>
+        </div>
+        <div className={`px-3 py-1.5 rounded-lg ${isWin ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+          <div className="flex items-center gap-1">
+            {isWin ? <Trophy className="w-4 h-4 text-green-600 dark:text-green-400" /> : <X className="w-4 h-4 text-red-600 dark:text-red-400" />}
+            <span className={`text-sm font-bold ${isWin ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              {isWin ? 'WIN' : 'LOSS'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 mb-3">
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-gray-500 dark:text-gray-400 mb-1">Signal Time</p>
+            <p className="font-semibold text-gray-900 dark:text-white">{startTime}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 dark:text-gray-400 mb-1">Expired Time</p>
+            <p className="font-semibold text-gray-900 dark:text-white">{endTime}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <Clock className="w-4 h-4" />
+          <span>{formattedDate}</span>
+        </div>
+        <div className={`text-lg font-black ${isWin ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          {finalPnl >= 0 ? '+' : ''}{finalPnl.toFixed(2)}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TabSelector({ selected, onChange, recordCount }: { selected: TabType; onChange: (type: TabType) => void; recordCount: number }) {
+  return (
+    <div className="grid grid-cols-3 gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl mb-4">
+      <button onClick={() => onChange('FUTURES')} className={`py-3 px-2 rounded-lg text-xs font-bold transition-all ${selected === 'FUTURES' ? 'bg-primary-500 text-white shadow-lg' : 'text-gray-600 dark:text-gray-400'}`}> Futures </button>
+      <button onClick={() => onChange('SPOT')} className={`py-3 px-2 rounded-lg text-xs font-bold transition-all ${selected === 'SPOT' ? 'bg-primary-500 text-white shadow-lg' : 'text-gray-600 dark:text-gray-400'}`}> Spot </button>
+      <button onClick={() => onChange('RECORD')} className={`py-3 px-2 rounded-lg text-xs font-bold transition-all relative ${selected === 'RECORD' ? 'bg-primary-500 text-white shadow-lg' : 'text-gray-600 dark:text-gray-400'}`}>        <FileText className="w-4 h-4 inline mr-1" /> Record
+        {recordCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{recordCount > 99 ? '99+' : recordCount}</span>}
+      </button>
+    </div>
+  );
+}
 
 export function SignalFeed() {
   const [activeTab, setActiveTab] = useState<TabType>('FUTURES');
@@ -42,12 +243,12 @@ export function SignalFeed() {
               <p className="text-[10px] text-gray-500 dark:text-gray-400">{activeTab === 'RECORD' ? 'Signal History' : `Live ${marketType} Feed`}</p>
             </div>
           </div>
-          {activeTab !== 'RECORD' && (
-            <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400">
+          {activeTab !== 'RECORD' && (            <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400">
               <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
               LIVE
             </div>
-          )}        </div>
+          )}
+        </div>
         <TabSelector selected={activeTab} onChange={setActiveTab} recordCount={signalRecord.length} />
       </div>
 
@@ -91,12 +292,12 @@ export function SignalFeed() {
             ) : (
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-8 h-8 text-gray-400" />
-                </div>
+                  <FileText className="w-8 h-8 text-gray-400" />                </div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">No Records Yet</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Expired signals will appear here automatically</p>
               </div>
-            )}          </div>
+            )}
+          </div>
         )}
       </div>
     </div>
