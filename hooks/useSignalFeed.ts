@@ -1,17 +1,46 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { FeedSignal } from '@/lib/signalFeedEngine';
 import { useLivePrice } from '@/context/LivePriceContext';
 
 export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
-  const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe } = useLivePrice();
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const isGenerating = useRef(false);
 
-  const generateSignals = async () => {
+  // 1. Initialize from Local Storage (Persistence)
+  const storageKeyActive = `gchat_signals_active_${marketType}`;
+  const storageKeyRecord = `gchat_signals_record_${marketType}`;
+
+  const [signals, setSignals] = useState<FeedSignal[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(storageKeyActive);
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
+  const [signalRecord, setSignalRecord] = useState<FeedSignal[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(storageKeyRecord);
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
+  // 2. Save to Local Storage whenever they change
+  useEffect(() => {
+    localStorage.setItem(storageKeyActive, JSON.stringify(signals));
+  }, [signals, storageKeyActive]);
+
+  useEffect(() => {
+    localStorage.setItem(storageKeyRecord, JSON.stringify(signalRecord));
+  }, [signalRecord, storageKeyRecord]);
+
+  // 3. Generate Signals (Only if empty)
+  const generateSignals = useCallback(async () => {
     if (isGenerating.current) return;
     isGenerating.current = true;
     setIsScanning(true);
@@ -19,7 +48,6 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
     try {
       const res = await fetch(`/api/scanner?type=${marketType}`);
       const json = await res.json();
-
       if (json.success && json.data && json.data.length > 0) {
         const newSignals: FeedSignal[] = [];
         const signalGenerationTime = Date.now();
@@ -43,11 +71,8 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
               marketType: marketType,
               direction,
               entry: entryPrice,
-              tp: direction === 'LONG' 
-                ? entryPrice * 1.015 
-                : entryPrice * 0.985,
-              sl: direction === 'LONG' 
-                ? entryPrice * 0.995                 : entryPrice * 1.015,
+              tp: direction === 'LONG' ? entryPrice * 1.015 : entryPrice * 0.985,
+              sl: direction === 'LONG' ? entryPrice * 0.995 : entryPrice * 1.015,
               timeframe,
               signalTime: signalGenerationTime,
               expireTime: signalGenerationTime + timeframeMs,
@@ -63,7 +88,6 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
         }
 
         if (newSignals.length > 0) {
-          // ONLY add new signals, never replace existing ones
           setSignals(prev => {
             const existingIds = new Set(prev.map(s => s.id));
             const uniqueNew = newSignals.filter(s => !existingIds.has(s.id));
@@ -72,83 +96,95 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
         }
       }
     } catch (e) {
-      console.error('Signal generation error:', e);
-    } finally {
+      console.error('Signal generation error:', e);    } finally {
       setIsScanning(false);
       setIsLoading(false);
       isGenerating.current = false;
     }
-  };
+  }, [marketType, subscribe]);
 
-  // Generate signals on mount
+  // 4. Initial Load & Expiration Check
   useEffect(() => {
-    generateSignals();
-  }, [marketType]);
+    setIsLoading(true);
+    
+    // Check if we have active signals in storage
+    const hasActive = signals.some(s => s.status === 'FRESH' || s.status === 'ACTIVE');
+    
+    if (!hasActive) {
+      // No active signals, scan for new ones
+      generateSignals();
+    } else {
+      // We have signals, just stop loading
+      setIsLoading(false);
+    }
+  }, []); // Run once on mount
 
-  // Check every 10 seconds if we need new signals (only when all expired)
+  // 5. The Heartbeat: Update prices, countdown, and move to record
   useEffect(() => {
-    const checkInterval = setInterval(() => {
-      setSignals(prev => {
-        const hasActive = prev.some(s => s.status === 'FRESH' || s.status === 'ACTIVE');
-        if (!hasActive && prev.length > 0) {
-          // All signals expired, generate new batch
-          setTimeout(() => generateSignals(), 1000);
-        }
-        return prev;
-      });
-    }, 10000);
-    return () => clearInterval(checkInterval);
-  }, []);
-
-  // Update prices and countdown every second
-  useEffect(() => {
-    if (Object.keys(prices).length === 0) return;
+    if (Object.keys(prices).length === 0 && signals.length === 0) return;
 
     const updateInterval = setInterval(() => {
+      const now = Date.now();
+      let recordUpdates: FeedSignal[] = [];
+
       setSignals(prevSignals => {
-        const now = Date.now();
-        
-        return prevSignals.map(signal => {
-          const currentPrice = prices[signal.asset];
-          if (!currentPrice) return signal;
+        const remainingActive: FeedSignal[] = [];
+
+        prevSignals.forEach(signal => {
+          const currentPrice = prices[signal.asset] || signal.currentPrice || signal.entry;
           
-          // If already expired, don't touch it
+          // If already expired in the past, keep it as is
           if (signal.status === 'WIN' || signal.status === 'LOSS') {
-            return signal;
+            remainingActive.push(signal);
+            return;
           }
 
-          // Check if time expired
+          // Check if time is up
           if (now > signal.expireTime) {
             const pnl = signal.direction === 'LONG' 
               ? ((currentPrice - signal.entry) / signal.entry) * 100
               : ((signal.entry - currentPrice) / signal.entry) * 100;
             
-            const finalPnl = parseFloat(pnl.toFixed(2));
+            const finalPnl = parseFloat(pnl.toFixed(2));            const finalStatus = (finalPnl >= 0 ? 'WIN' : 'LOSS') as 'WIN' | 'LOSS';
             
-            return {
+            const expiredSignal = {
               ...signal,
-              status: (finalPnl >= 0 ? 'WIN' : 'LOSS') as 'WIN' | 'LOSS',
+              status: finalStatus,
               pnl: finalPnl,
               currentPrice
             };
+            
+            recordUpdates.push(expiredSignal); // Move to record
+          } else {
+            // Still active
+            const pnl = signal.direction === 'LONG' 
+              ? ((currentPrice - signal.entry) / signal.entry) * 100
+              : ((signal.entry - currentPrice) / signal.entry) * 100;
+
+            remainingActive.push({
+              ...signal,
+              status: 'ACTIVE' as 'FRESH' | 'ACTIVE' | 'WIN' | 'LOSS',
+              currentPrice,
+              pnl: parseFloat(pnl.toFixed(2))
+            });
           }
-
-          // Still active - update price and P/L only
-          const pnl = signal.direction === 'LONG' 
-            ? ((currentPrice - signal.entry) / signal.entry) * 100
-            : ((signal.entry - currentPrice) / signal.entry) * 100;
-
-          return {
-            ...signal,
-            status: 'ACTIVE' as 'FRESH' | 'ACTIVE' | 'WIN' | 'LOSS',
-            currentPrice,
-            pnl: parseFloat(pnl.toFixed(2))
-          };
         });
-      });    }, 1000);
+
+        // Add newly expired signals to the record
+        if (recordUpdates.length > 0) {
+          setSignalRecord(prevRecord => {
+            const existingIds = new Set(prevRecord.map(s => s.id));
+            const uniqueNew = recordUpdates.filter(s => !existingIds.has(s.id));
+            return [...uniqueNew, ...prevRecord]; // Newest first
+          });
+        }
+
+        return remainingActive;
+      });
+    }, 1000);
 
     return () => clearInterval(updateInterval);
   }, [prices]);
 
-  return { signals, isLoading, isScanning };
+  return { signals, signalRecord, isLoading, isScanning };
 }
