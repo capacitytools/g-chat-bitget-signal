@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { FeedSignal } from '@/lib/signalFeedEngine';
 import { useLivePrice } from '@/context/LivePriceContext';
 
@@ -8,95 +8,105 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe } = useLivePrice();
   const [isLoading, setIsLoading] = useState(true);
+  const signalsRef = useRef<FeedSignal[]>([]);
   const hasLoadedOnce = useRef(false);
   const isGenerating = useRef(false);
 
-  useEffect(() => {
-    const generateSignals = async () => {
-      if (isGenerating.current) return;
-      isGenerating.current = true;
+  // Generate signals function
+  const generateSignals = useCallback(async () => {
+    if (isGenerating.current) return;
+    isGenerating.current = true;
 
-      if (!hasLoadedOnce.current) {
-        setIsLoading(true);
-      }
-      
-      try {
-        const res = await fetch(`/api/scanner?type=${marketType}`);
-        const json = await res.json();
+    if (!hasLoadedOnce.current) {
+      setIsLoading(true);
+    }
+    
+    try {
+      const res = await fetch(`/api/scanner?type=${marketType}`);
+      const json = await res.json();
 
-        if (json.success && json.data && json.data.length > 0) {
-          const newSignals: FeedSignal[] = [];
-          const signalGenerationTime = Date.now();
+      if (json.success && json.data && json.data.length > 0) {
+        const newSignals: FeedSignal[] = [];
+        const signalGenerationTime = Date.now();
 
-          for (const asset of json.data) {
-            if (newSignals.length >= 10) break;
+        // Only take first 5 valid assets
+        let validCount = 0;
+        for (const asset of json.data) {
+          if (validCount >= 5) break;
+          
+          if (asset.marketType === marketType && asset.score >= 60) {
+            validCount++;
+            const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
+            const timeframe: '1m' | '3m' | '5m' = 
+              asset.score >= 80 ? '1m' : asset.score >= 70 ? '3m' : '5m';
             
-            if (asset.marketType === marketType && asset.score >= 60) {
-              const direction = asset.trend === 'Bullish' ? 'LONG' : 'SHORT';
-              const timeframe: '1m' | '3m' | '5m' = 
-                asset.score >= 80 ? '1m' : asset.score >= 70 ? '3m' : '5m';
-              
-              const timeframeMs = timeframe === '1m' ? 60000 : timeframe === '3m' ? 180000 : 300000;
-              const entryPrice = parseFloat(asset.price);
-              
-              const signal: FeedSignal = {
-                id: `${asset.symbol}-${signalGenerationTime}-${Math.random().toString(36).substr(2, 5)}`,
-                asset: asset.symbol,
-                marketType: marketType,
-                direction,
-                entry: entryPrice,
-                tp: direction === 'LONG' 
-                  ? entryPrice * 1.015 
-                  : entryPrice * 0.985,                sl: direction === 'LONG' 
-                  ? entryPrice * 0.995 
-                  : entryPrice * 1.015,
-                timeframe,
-                signalTime: signalGenerationTime,
-                expireTime: signalGenerationTime + timeframeMs,
-                confidence: Math.max(65, asset.score || 70),
-                status: 'FRESH',
-                currentPrice: entryPrice
-              };
+            // Calculate correct expire time
+            const timeframeMs = timeframe === '1m' ? 60000 : timeframe === '3m' ? 180000 : 300000;
+            const entryPrice = parseFloat(asset.price);
+            
+            const signal: FeedSignal = {
+              id: `${asset.symbol}-${signalGenerationTime}-${validCount}`,
+              asset: asset.symbol,
+              marketType: marketType,              direction,
+              entry: entryPrice,
+              tp: direction === 'LONG' 
+                ? entryPrice * 1.015 
+                : entryPrice * 0.985,
+              sl: direction === 'LONG' 
+                ? entryPrice * 0.995 
+                : entryPrice * 1.015,
+              timeframe,
+              signalTime: signalGenerationTime,
+              expireTime: signalGenerationTime + timeframeMs,
+              confidence: Math.max(65, asset.score || 70),
+              status: 'FRESH',
+              currentPrice: entryPrice
+            };
 
-              newSignals.push(signal);
-              subscribe(asset.symbol, marketType);
-            }
-          }
-
-          if (newSignals.length > 0) {
-            setSignals(prev => {
-              const existingIds = new Set(prev.map(s => s.id));
-              const uniqueNew = newSignals.filter(s => !existingIds.has(s.id));
-              return [...uniqueNew, ...prev].slice(0, 15);
-            });
+            newSignals.push(signal);
+            subscribe(asset.symbol, marketType);
           }
         }
-      } catch (e) {
-        console.error('Signal generation error:', e);
-      } finally {
-        setIsLoading(false);
-        hasLoadedOnce.current = true;
-        isGenerating.current = false;
-      }
-    };
 
+        if (newSignals.length > 0) {
+          signalsRef.current = newSignals;
+          setSignals(newSignals);
+        }
+      }
+    } catch (e) {
+      console.error('Signal generation error:', e);
+    } finally {
+      setIsLoading(false);
+      hasLoadedOnce.current = true;
+      isGenerating.current = false;
+    }
+  }, [marketType, subscribe]);
+
+  // Generate signals on mount and every 2 minutes
+  useEffect(() => {
     generateSignals();
     const interval = setInterval(generateSignals, 120000);
     return () => clearInterval(interval);
-  }, [subscribe, marketType]);
+  }, [generateSignals]);
 
+  // Update prices and countdown every second
   useEffect(() => {
     if (Object.keys(prices).length === 0) return;
 
     const updateInterval = setInterval(() => {
-      setSignals(prevSignals => 
-        prevSignals.map(signal => {
+      const now = Date.now();
+      
+      setSignals(prevSignals => {        const updated = prevSignals.map(signal => {
           const currentPrice = prices[signal.asset];
-          if (!currentPrice || signal.status === 'WIN' || signal.status === 'LOSS') {
+          if (!currentPrice) return signal;
+          
+          // If already expired, don't update
+          if (signal.status === 'WIN' || signal.status === 'LOSS') {
             return signal;
           }
 
-          const now = Date.now();          if (now > signal.expireTime) {
+          // Check if time expired
+          if (now > signal.expireTime) {
             const pnl = signal.direction === 'LONG' 
               ? ((currentPrice - signal.entry) / signal.entry) * 100
               : ((signal.entry - currentPrice) / signal.entry) * 100;
@@ -104,11 +114,12 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
             return {
               ...signal,
               status: pnl >= 0 ? 'WIN' : 'LOSS',
-              pnl,
+              pnl: parseFloat(pnl.toFixed(2)),
               currentPrice
             };
           }
 
+          // Still active - update price and P/L
           const pnl = signal.direction === 'LONG' 
             ? ((currentPrice - signal.entry) / signal.entry) * 100
             : ((signal.entry - currentPrice) / signal.entry) * 100;
@@ -117,10 +128,13 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
             ...signal,
             status: 'ACTIVE',
             currentPrice,
-            pnl
+            pnl: parseFloat(pnl.toFixed(2))
           };
-        })
-      );
+        });
+
+        signalsRef.current = updated;
+        return updated;
+      });
     }, 1000);
 
     return () => clearInterval(updateInterval);
