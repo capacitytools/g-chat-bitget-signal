@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FeedSignal } from '@/lib/signalFeedEngine';
 import { useLivePrice } from '@/context/LivePriceContext';
 
@@ -8,17 +8,14 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
   const [signals, setSignals] = useState<FeedSignal[]>([]);
   const { prices, subscribe } = useLivePrice();
   const [isLoading, setIsLoading] = useState(true);
-  const hasLoadedOnce = useRef(false);
+  const [isScanning, setIsScanning] = useState(false);
   const isGenerating = useRef(false);
 
-  const generateSignals = useCallback(async () => {
+  const generateSignals = async () => {
     if (isGenerating.current) return;
     isGenerating.current = true;
+    setIsScanning(true);
 
-    if (!hasLoadedOnce.current) {
-      setIsLoading(true);
-    }
-    
     try {
       const res = await fetch(`/api/scanner?type=${marketType}`);
       const json = await res.json();
@@ -47,10 +44,10 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
               direction,
               entry: entryPrice,
               tp: direction === 'LONG' 
-                ? entryPrice * 1.015                 : entryPrice * 0.985,
+                ? entryPrice * 1.015 
+                : entryPrice * 0.985,
               sl: direction === 'LONG' 
-                ? entryPrice * 0.995 
-                : entryPrice * 1.015,
+                ? entryPrice * 0.995                 : entryPrice * 1.015,
               timeframe,
               signalTime: signalGenerationTime,
               expireTime: signalGenerationTime + timeframeMs,
@@ -66,24 +63,44 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
         }
 
         if (newSignals.length > 0) {
-          setSignals(newSignals);
+          // ONLY add new signals, never replace existing ones
+          setSignals(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const uniqueNew = newSignals.filter(s => !existingIds.has(s.id));
+            return [...prev, ...uniqueNew];
+          });
         }
       }
     } catch (e) {
       console.error('Signal generation error:', e);
     } finally {
+      setIsScanning(false);
       setIsLoading(false);
-      hasLoadedOnce.current = true;
       isGenerating.current = false;
     }
-  }, [marketType, subscribe]);
+  };
 
+  // Generate signals on mount
   useEffect(() => {
     generateSignals();
-    const interval = setInterval(generateSignals, 120000);
-    return () => clearInterval(interval);
-  }, [generateSignals]);
+  }, [marketType]);
 
+  // Check every 10 seconds if we need new signals (only when all expired)
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      setSignals(prev => {
+        const hasActive = prev.some(s => s.status === 'FRESH' || s.status === 'ACTIVE');
+        if (!hasActive && prev.length > 0) {
+          // All signals expired, generate new batch
+          setTimeout(() => generateSignals(), 1000);
+        }
+        return prev;
+      });
+    }, 10000);
+    return () => clearInterval(checkInterval);
+  }, []);
+
+  // Update prices and countdown every second
   useEffect(() => {
     if (Object.keys(prices).length === 0) return;
 
@@ -95,9 +112,12 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
           const currentPrice = prices[signal.asset];
           if (!currentPrice) return signal;
           
+          // If already expired, don't touch it
           if (signal.status === 'WIN' || signal.status === 'LOSS') {
-            return signal;          }
+            return signal;
+          }
 
+          // Check if time expired
           if (now > signal.expireTime) {
             const pnl = signal.direction === 'LONG' 
               ? ((currentPrice - signal.entry) / signal.entry) * 100
@@ -113,6 +133,7 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
             };
           }
 
+          // Still active - update price and P/L only
           const pnl = signal.direction === 'LONG' 
             ? ((currentPrice - signal.entry) / signal.entry) * 100
             : ((signal.entry - currentPrice) / signal.entry) * 100;
@@ -124,11 +145,10 @@ export function useSignalFeed(marketType: 'FUTURES' | 'SPOT' = 'FUTURES') {
             pnl: parseFloat(pnl.toFixed(2))
           };
         });
-      });
-    }, 1000);
+      });    }, 1000);
 
     return () => clearInterval(updateInterval);
   }, [prices]);
 
-  return { signals, isLoading };
+  return { signals, isLoading, isScanning };
 }
