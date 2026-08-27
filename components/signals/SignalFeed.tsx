@@ -9,7 +9,7 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
   const isLong = signal.direction === 'LONG';
   const [timeLeft, setTimeLeft] = useState(0);
 
-  // Countdown timer - counts down from expire time
+  // Countdown timer - updates every second
   useEffect(() => {
     const timer = setInterval(() => {
       const remaining = Math.max(0, Math.floor((signal.expireTime - Date.now()) / 1000));
@@ -28,12 +28,12 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Calculate live P/L percentage
-  const livePnl = signal.currentPrice 
+  // Calculate live P/L from current price
+  const livePnl = signal.currentPrice && signal.currentPrice !== signal.entry
     ? (isLong 
         ? ((signal.currentPrice - signal.entry) / signal.entry) * 100
         : ((signal.entry - signal.currentPrice) / signal.entry) * 100)
-    : 0;
+    : (signal.pnl || 0);
 
   return (
     <div className={`border-2 rounded-xl p-4 w-full max-w-2xl mx-auto transition-all mb-3 ${
@@ -82,19 +82,19 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
             </p>
           </div>
           <div className={`rounded-xl p-3 text-center ${
-            livePnl >= 0 ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'
+            (livePnl || 0) >= 0 ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'
           }`}>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Live P/L</p>
             <p className={`text-lg font-bold ${
-              livePnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              (livePnl || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
             }`}>
-              {livePnl >= 0 ? '+' : ''}{livePnl.toFixed(2)}%
+              {(livePnl || 0) >= 0 ? '+' : ''}{(livePnl || 0).toFixed(2)}%
             </p>
           </div>
         </div>
       )}
 
-      {/* Expired Result - STATIC */}
+      {/* Expired Result */}
       {isExpired && (
         <div className={`rounded-xl p-6 mb-3 text-center ${          isWin ? 'bg-green-500' : 'bg-red-500'
         }`}>
