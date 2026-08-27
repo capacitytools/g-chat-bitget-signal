@@ -9,7 +9,6 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
   const isLong = signal.direction === 'LONG';
   const [timeLeft, setTimeLeft] = useState(0);
 
-  // Countdown timer - updates every second
   useEffect(() => {
     const timer = setInterval(() => {
       const remaining = Math.max(0, Math.floor((signal.expireTime - Date.now()) / 1000));
@@ -28,12 +27,7 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Calculate live P/L from current price
-  const livePnl = signal.currentPrice && signal.currentPrice !== signal.entry
-    ? (isLong 
-        ? ((signal.currentPrice - signal.entry) / signal.entry) * 100
-        : ((signal.entry - signal.currentPrice) / signal.entry) * 100)
-    : (signal.pnl || 0);
+  const livePnl = signal.pnl || 0;
 
   return (
     <div className={`border-2 rounded-xl p-4 w-full max-w-2xl mx-auto transition-all mb-3 ${
@@ -41,25 +35,23 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         ? (isWin ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-red-500 bg-red-50 dark:bg-red-900/10')
         : (isLong ? 'border-green-500/50 bg-white dark:bg-gray-800' : 'border-red-500/50 bg-white dark:bg-gray-800')
     }`}>
-      {/* Header - STATIC */}
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
             isLong ? 'bg-green-500' : 'bg-red-500'
           }`}>
-            {isLong ? <TrendingUp className="w-7 h-7 text-white" /> : <TrendingDown className="w-7 h-7 text-white" />}          </div>
+            {isLong ? <TrendingUp className="w-7 h-7 text-white" /> : <TrendingDown className="w-7 h-7 text-white" />}
+          </div>
           <div>
             <p className="text-base font-bold text-gray-900 dark:text-white">{signal.asset}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{signal.timeframe} • {signal.direction}</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-bold text-gray-400 uppercase">Confidence</p>
+        <div className="text-right">          <p className="text-[10px] font-bold text-gray-400 uppercase">Confidence</p>
           <p className="text-lg font-bold text-primary-600 dark:text-primary-400">{signal.confidence}%</p>
         </div>
       </div>
 
-      {/* Countdown Timer - DYNAMIC */}
       {!isExpired && (
         <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-4 mb-3 text-center">
           <div className="flex items-center justify-center gap-2 mb-1">
@@ -72,7 +64,6 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       )}
 
-      {/* Current Price & Live P/L - DYNAMIC */}
       {!isExpired && (
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 text-center">
@@ -82,21 +73,21 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
             </p>
           </div>
           <div className={`rounded-xl p-3 text-center ${
-            (livePnl || 0) >= 0 ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'
+            livePnl >= 0 ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'
           }`}>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Live P/L</p>
             <p className={`text-lg font-bold ${
-              (livePnl || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              livePnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
             }`}>
-              {(livePnl || 0) >= 0 ? '+' : ''}{(livePnl || 0).toFixed(2)}%
+              {livePnl >= 0 ? '+' : ''}{livePnl.toFixed(2)}%
             </p>
           </div>
         </div>
       )}
 
-      {/* Expired Result */}
       {isExpired && (
-        <div className={`rounded-xl p-6 mb-3 text-center ${          isWin ? 'bg-green-500' : 'bg-red-500'
+        <div className={`rounded-xl p-6 mb-3 text-center ${
+          isWin ? 'bg-green-500' : 'bg-red-500'
         }`}>
           <div className="flex items-center justify-center gap-2 mb-2">
             {isWin ? <CheckCircle className="w-8 h-8 text-white" /> : <XCircle className="w-8 h-8 text-white" />}
@@ -105,12 +96,10 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
             </span>
           </div>
           <p className="text-3xl font-black text-white">
-            {isWin ? '+' : ''}{signal.pnl?.toFixed(2)}%
-          </p>
+            {isWin ? '+' : ''}{signal.pnl?.toFixed(2)}%          </p>
         </div>
       )}
 
-      {/* Entry, TP, SL - ALL STATIC */}
       <div className="grid grid-cols-3 gap-2 text-xs mb-3">
         <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 text-center">
           <p className="text-gray-500 dark:text-gray-400 mb-1">Entry</p>
@@ -126,7 +115,6 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
         </div>
       </div>
 
-      {/* Signal Times - STATIC */}
       <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-1">
           <Clock className="w-4 h-4" />
@@ -140,12 +128,12 @@ function SignalCard({ signal }: { signal: FeedSignal }) {
   );
 }
 
-// Tab selector
 function MarketTypeSelector({ 
   selected, 
   onChange 
 }: { 
-  selected: 'FUTURES' | 'SPOT';   onChange: (type: 'FUTURES' | 'SPOT') => void 
+  selected: 'FUTURES' | 'SPOT'; 
+  onChange: (type: 'FUTURES' | 'SPOT') => void 
 }) {
   return (
     <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl mb-4">
@@ -157,8 +145,7 @@ function MarketTypeSelector({
             : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
       >
-        🔷 Futures Signals
-      </button>
+        🔷 Futures Signals      </button>
       <button
         onClick={() => onChange('SPOT')}
         className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all ${
@@ -194,8 +181,8 @@ export function SignalFeed() {
   const activeSignals = signals.filter(s => s.status === 'FRESH' || s.status === 'ACTIVE');
   const closedSignals = signals.filter(s => s.status === 'WIN' || s.status === 'LOSS');
 
-  return (    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
-      {/* Header */}
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
       <div className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -207,8 +194,7 @@ export function SignalFeed() {
               <p className="text-[10px] text-gray-500 dark:text-gray-400">Live {marketType} Feed</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400">
-            <span className="relative flex h-2 w-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400">            <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
@@ -216,12 +202,10 @@ export function SignalFeed() {
           </div>
         </div>
         
-        {/* Market Type Selector */}
         <MarketTypeSelector selected={marketType} onChange={setMarketType} />
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Active Signals - Vertical Scroll */}
         {activeSignals.length > 0 && (
           <div>
             <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -234,7 +218,6 @@ export function SignalFeed() {
           </div>
         )}
 
-        {/* Closed Signals - Vertical Scroll */}
         {closedSignals.length > 0 && (
           <div>
             <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3">
@@ -243,7 +226,8 @@ export function SignalFeed() {
             {closedSignals.map(signal => (
               <SignalCard key={signal.id} signal={signal} />
             ))}
-          </div>        )}
+          </div>
+        )}
 
         {signals.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center p-4 mt-20">
